@@ -4,7 +4,7 @@
 
 # Example data and results
 Example_Data/
-Example_Results/
+Example_Results/*.mat
 
 # MATLAB autosave files
 *.asv
