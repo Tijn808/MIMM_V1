@@ -1,0 +1,13 @@
+# Large data files
+*.mat
+*.zip
+
+# Example data and results
+Example_Data/
+Example_Results/
+
+# MATLAB autosave files
+*.asv
+
+# OS files
+.DS_Store
