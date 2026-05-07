@@ -68,7 +68,8 @@ sepia_header.B0_dir  = B0_dir(:);
 sepia_header.voxelSize = voxel;
 
 % SEPIA field map estimation (echo combination + unwrapping)
-[field_map, ~, ~, ~] = estimateTotalField(pha_data, mag_data, Brain_Mask, ...
+% Second output is R2* map (s^-1) — saved for chi-separation
+[field_map, R2star, ~, ~] = estimateTotalField(pha_data, mag_data, Brain_Mask, ...
     sepia_header, ...
     'method', 'MEDI nonlinear fit', ...
     'Unwrap',  'Laplacian');
@@ -98,6 +99,10 @@ qsm_info.Datatype   = 'double';
 qsm_info.ImageSize  = size(QSM);
 qsm_info.PixelDimensions = voxel;
 niftiwrite(QSM, fullfile(output_dir, 'QSM.nii.gz'), qsm_info, 'Compressed', true);
+
+% R2* map (s^-1) — needed for chi-separation
+r2s_info          = qsm_info;
+niftiwrite(R2star, fullfile(output_dir, 'R2star.nii.gz'), r2s_info, 'Compressed', true);
 
 % Brain mask
 mask_out            = qsm_info;
