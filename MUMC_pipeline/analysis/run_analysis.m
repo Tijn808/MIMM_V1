@@ -43,13 +43,14 @@ for vi = 1:numel(mimm_variants)
         out_sub = fullfile(output_dir, vname, roi);
         if ~exist(out_sub, 'dir'); mkdir(out_sub); end
 
-        % Extract mean MVF per subject within ROI
-        % Adapt indexing to match your ROI mask structure
-        mvf_subj   = mv.MVF_roi.(roi);       % [N_subjects x 1]
-        mwf_subj   = mwf_per_roi.(roi);      % [N_subjects x 1]
-        chi_subj   = chisep_per_roi.(roi);   % [N_subjects x 1]
+        % Subject-level means within ROI — one value per subject.
+        % These must be [N_subjects x 1] vectors, NOT voxel-level arrays.
+        % Compute mean over ROI voxels for each subject before passing here.
+        mvf_subj   = mv.MVF_roi.(roi);       % [N_subjects x 1] mean MVF per subject
+        mwf_subj   = mwf_per_roi.(roi);      % [N_subjects x 1] mean MWF per subject
+        chi_subj   = chisep_per_roi.(roi);   % [N_subjects x 1] mean |chi_neg| per subject
 
-        %% Bland-Altman
+        %% Bland-Altman (subject-level: N points = N subjects)
         bland_altman(mvf_subj, mwf_subj, chi_subj, [vname '_' roi], out_sub);
 
         %% Clinical correlation

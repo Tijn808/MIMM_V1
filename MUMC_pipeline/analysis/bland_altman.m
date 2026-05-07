@@ -1,10 +1,13 @@
 % Bland-Altman analysis: MIMM MVF vs MWF and vs source-separation myelin proxy
 %
-% Inputs (per subject, loaded from results structs):
-%   mvf_mimm    : [N x 1] MIMM MVF values within ROI (fraction, 0-0.55)
-%   mwf         : [N x 1] T2-GRASE MWF values within same ROI (fraction)
-%   chi_neg     : [N x 1] Negative (diamagnetic) susceptibility from source
-%                 separation, used as myelin proxy (ppm, sign-flipped to positive)
+% IMPORTANT: inputs must be SUBJECT-LEVEL means (one value per subject per ROI).
+% Do NOT pass voxel-level data — pooled voxels from multiple subjects violate
+% the independence assumption, inflate N, and produce artificially narrow LoA.
+%
+% Inputs:
+%   mvf_mimm    : [N_subjects x 1] mean MIMM MVF per subject within ROI
+%   mwf         : [N_subjects x 1] mean T2-GRASE MWF per subject within same ROI
+%   chi_neg     : [N_subjects x 1] mean |chi_neg| per subject within same ROI (ppm)
 %   roi_label   : string label for the ROI (for figure titles)
 %
 % Outputs:
@@ -15,6 +18,13 @@ function ba = bland_altman(mvf_mimm, mwf, chi_neg, roi_label, output_dir)
 
     if nargin < 4; roi_label   = 'ROI'; end
     if nargin < 5; output_dir  = '.';   end
+
+    % Enforce subject-level input (warn if suspiciously large N)
+    if numel(mvf_mimm) > 200
+        warning(['bland_altman received %d data points — expected N_subjects (typically <100).\n' ...
+                 'Make sure you are passing subject-level ROI means, not voxel-level data.'], ...
+                numel(mvf_mimm));
+    end
 
     %% --- MIMM MVF vs MWF ---
     [ba.mvf_vs_mwf, fig1] = ba_pair(mvf_mimm, mwf, ...
