@@ -1,6 +1,6 @@
-# MIMM — Microstructure-Informed Myelin Mapping
+# MIMM, Microstructure-Informed Myelin Mapping
 
-Implementation of **Şişman et al. 2025** — *Microstructure-Informed Myelin Mapping (MIMM) from routine multi-echo gradient echo data using multiscale physics modeling of iron and myelin effects and QSM*
+Implementation of **Şişman et al. 2025**, *Microstructure-Informed Myelin Mapping (MIMM) from routine multi-echo gradient echo data using multiscale physics modeling of iron and myelin effects and QSM*
 (Magn Reson Med 93:1499–1515, doi:10.1002/mrm.30369)
 
 MIMM estimates the **myelin volume fraction (MVF)** from routine multi-gradient echo (mGRE) MRI data by matching measured signals to a biophysical dictionary.
@@ -59,10 +59,10 @@ cd('/path/to/MIMM')
 MIMM_set_path
 ```
 
-### 2. Dictionary Generation (optional — ~38h)
+### 2. Dictionary Generation (optional , ~38h)
 Precomputed dictionaries are provided. Skip this step unless you need to regenerate them.
 ```matlab
-% See RUNME.m — Dictionary Generation section
+% See RUNME.m , Dictionary Generation section
 ```
 
 ### 3. Run MIMM
