@@ -33,15 +33,23 @@ mag_4d = [];
 pha_4d = [];
 
 for e = 1:n_echoes
-    mag_file = fullfile(data_dir, sprintf('%s-ME_GRE_e%d.nii.gz',    prefix, e));
-    pha_file = fullfile(data_dir, sprintf('%s-ME_GRE_e%d_ph.nii.gz', prefix, e));
+    mag_file      = fullfile(data_dir, sprintf('%s-ME_GRE_e%d.nii.gz',       prefix, e));
+    pha_file      = fullfile(data_dir, sprintf('%s-ME_GRE_e%d_ph.nii.gz',    prefix, e));
+    mag_json_file = fullfile(data_dir, sprintf('%s-ME_GRE_e%d.json',         prefix, e));
+    pha_json_file = fullfile(data_dir, sprintf('%s-ME_GRE_e%d_ph.json',      prefix, e));
 
-    % niftiread applies NIfTI scl_slope / scl_inter automatically
+    % Read raw integer values (dcm2niix does not embed Philips scaling in NIfTI header)
     mag_vol = double(niftiread(mag_file));
     pha_vol = double(niftiread(pha_file));
 
-    % Phase: niftiread returns milli-radians after Philips scaling → convert to radians
-    pha_vol = pha_vol / 1000;
+    % Apply Philips RWV scaling from JSON sidecar
+    mag_json = jsondecode(fileread(mag_json_file));
+    pha_json = jsondecode(fileread(pha_json_file));
+
+    mag_vol = mag_vol * mag_json.PhilipsRWVSlope + mag_json.PhilipsRWVIntercept;
+
+    % Phase: RWV scaling gives milli-radians → divide by 1000 for radians
+    pha_vol = (pha_vol * pha_json.PhilipsRWVSlope + pha_json.PhilipsRWVIntercept) / 1000;
 
     if isempty(mag_4d)
         sz     = size(mag_vol);
