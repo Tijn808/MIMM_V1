@@ -1,3 +1,8 @@
+# MRI data — never commit patient or subject data
+*.nii
+*.nii.gz
+*.dcm
+
 # Large data files
 *.mat
 *.zip
@@ -5,6 +10,9 @@
 # Example data and results
 Example_Data/
 Example_Results/*.mat
+
+# External toolboxes (large, not project code)
+sepia/
 
 # MATLAB autosave files
 *.asv

@@ -30,7 +30,7 @@ lambda_chi = 0.015;                      % QSM/magnitude weighting (L-curve opti
 %% --- Paths (adapt per subject) ---
 
 mimm_root = '/home/tijn-saes/Documents/Internship/MIMM';
-subj_dir  = '';      % e.g. '/data/MUMC/sub-01/'
+subj_dir  = '/home/tijn-saes/Documents/Internship/ME_GRE/';
 output_dir = fullfile(subj_dir, 'mimm');
 
 if ~exist(output_dir, 'dir'); mkdir(output_dir); end
@@ -41,9 +41,19 @@ run(fullfile(mimm_root, 'MIMM_set_path.m'));
 
 %% --- Load dictionary ---
 
-dict_file = fullfile(mimm_root, 'Dictionary', 'MIMM_dictionary_stochastic.mat');
-stoch     = load(dict_file, 'dictionary');
-dict      = stoch.dictionary;
+% Use MUMC-specific dictionary if available (no interpolation needed).
+% Fall back to original paper dictionary with interpolation if not yet generated.
+mumc_dict = fullfile(mimm_root, 'Dictionary', 'MIMM_dictionary_stochastic_MUMC.mat');
+orig_dict = fullfile(mimm_root, 'Dictionary', 'MIMM_dictionary_stochastic.mat');
+if exist(mumc_dict, 'file')
+    dict_file = mumc_dict;
+    disp('Using MUMC dictionary (TEs: 6/12/18/24/30 ms — no interpolation).');
+else
+    dict_file = orig_dict;
+    warning('MUMC dictionary not found — using original with TE interpolation.');
+end
+stoch = load(dict_file, 'dictionary');
+dict  = stoch.dictionary;
 
 %% --- Load input data ---
 
@@ -63,7 +73,7 @@ atlas_available = false;
 fa_file_dti      = fullfile(subj_dir, 'dti',   'FA.nii.gz');
 theta_file_dti   = fullfile(subj_dir, 'dti',   'theta.nii.gz');
 fa_file_atlas    = fullfile(subj_dir, 'atlas', 'FA_atlas.nii.gz');
-theta_file_atlas = fullfile(subj_dir, 'atlas', 'theta_atlas.nii.gz');
+theta_file_atlas = fullfile(subj_dir, 'atlas', 'theta_atlas.nii.gz');   % degrees, from register_atlas.sh
 
 if exist(fa_file_dti, 'file') && exist(theta_file_dti, 'file')
     FA_DTI    = double(niftiread(fa_file_dti));

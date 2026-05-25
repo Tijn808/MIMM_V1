@@ -424,7 +424,9 @@ function [isOK, cCount, xRand, yRand] = approveNewCircle(circdata, xyr, minDist,
 %   peakAtCircle(xyr,S)
 allCircs = [circdata; xyr];
 radMat = repmat(allCircs(:,3),1,size(allCircs,1)) + repmat(allCircs(:,3).',size(allCircs,1),1); %changed 190901 to work with r2016a
-dist = tril(squareform(pdist(allCircs(:,1:2))) - radMat, -1);
+pts = allCircs(:,1:2);
+D = sqrt(bsxfun(@minus,pts(:,1),pts(:,1)').^2 + bsxfun(@minus,pts(:,2),pts(:,2)').^2);
+dist = tril(D - radMat, -1);
 if isempty(dist)
     isOK = true; %when xyr only has 1 row
 else
