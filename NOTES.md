@@ -83,6 +83,34 @@ to OLS scaling when a principled same-units comparison is preferred.
 ### DTI data
 DTI files (.nii.gz, .bval, .bvec) not yet received. Confirmed b-values: 0, 1000, 2000. Preprocessing script ready at `MUMC_pipeline/preprocess/preprocess_dti.sh`. Awaiting account setup at MUMC.
 
+### JHU atlas registration — critical assessment (2026-05-28)
+
+Both JHU atlases (DTI-81, 48 ROIs; tractography thr25, 20 tracts) have been warped to MUMC subject space using the existing `mni2subj_warp.nii.gz`. Registration geometry is correct — R/L hemisphere assignments are correct and anatomical centroids are in plausible positions (genu anterior to splenium, IC correctly lateralised, paired tracts on correct sides).
+
+**Key limitation — FA_atlas is a population average:**
+The HCP1065 FA atlas warped to subject space has mean FA = 0.191 across all brain voxels (FA > 0.1). This is much lower than individual subject FA (~0.4–0.7 in WM) due to inter-subject averaging. Consequence: the MIMM atlas orientation prior (FA > 0.25 threshold) activates in far fewer voxels than intended — the atlas mode runs largely as basic mode in this subject. This will be resolved when subject-specific DTI FA arrives.
+
+**WM masking for figures:** FA_atlas > 0.20 used as WM display mask (180k voxels, primarily WM). Not a perfect segmentation — proper WM mask requires FSL FAST on T1w or subject-specific DTI FA. The chi_myelin map in particular still shows signal in some GM-adjacent voxels because MIMM has no GM class in the dictionary (forced match for all brain voxels).
+
+**Atlas comparison (DTI-81 vs tractography thr25):**
+- Both atlases show similar within-ROI CV (0.57) — neither is clearly more homogeneous
+- Tractography atlas shows marginally higher Pearson r for MVF vs chi_neg (0.77 vs 0.75) — slightly better spatial agreement between methods
+- DTI-81 is preferred for the primary analysis (matches the paper, more granular, bilateral pairs); tractography thr25 used as sensitivity check
+
+**Pending:** Re-run registration with subject-specific DTI FA when available; use DTI FA > 0.25 as definitive WM mask.
+
+### Figure quality fixes (2026-05-28)
+
+Applied three fixes to `generate_figures.py`:
+1. **WM mask (FA_atlas > 0.20)** applied to MVF, FVF, g-ratio, chi_myelin, chi_iron, theta — removes GM false-positive signal from microstructure maps
+2. **R2* colorscale** reduced from 0–50 to 0–35 s⁻¹ — better WM contrast, basal ganglia iron visible without saturation
+3. **FA atlas colorscale** reduced from 0–1 to 0–0.5 — reveals actual WM FA structure in the population-average map
+
+Residual issues (not fixable without better data):
+- QSM streaking artifact still visible in MVF difference map (coronal view) — label as artifact in any caption
+- chi_myelin still shows some GM coverage — fundamental MIMM limitation (no GM dictionary class)
+- FA atlas remains faint — will improve with subject DTI
+
 ---
 
 ## Experiments & Results

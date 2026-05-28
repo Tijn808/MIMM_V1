@@ -79,11 +79,35 @@ JHU_LABELS = {
     50: 'Fornix (cres) L',
 }
 
-# Paired R/L label indices: (R_label, L_label, tract_name)
+# Paired R/L label indices for DTI-81: (R_label, L_label, tract_name)
 LATERAL_PAIRS = [
     (idx, idx + 1, JHU_LABELS[idx].replace(' R', ''))
     for idx in range(7, 50, 2)
 ]
+
+# --- JHU tractography atlas label names (NIfTI values 1–20, thr25) ---
+JHU_TRACTS = {
+     1: 'Anterior thalamic radiation L',
+     2: 'Anterior thalamic radiation R',
+     3: 'Corticospinal tract L',
+     4: 'Corticospinal tract R',
+     5: 'Cingulum (cingulate gyrus) L',
+     6: 'Cingulum (cingulate gyrus) R',
+     7: 'Cingulum (hippocampus) L',
+     8: 'Cingulum (hippocampus) R',
+     9: 'Forceps major',
+    10: 'Forceps minor',
+    11: 'Inferior fronto-occipital fasciculus L',
+    12: 'Inferior fronto-occipital fasciculus R',
+    13: 'Inferior longitudinal fasciculus L',
+    14: 'Inferior longitudinal fasciculus R',
+    15: 'Superior longitudinal fasciculus L',
+    16: 'Superior longitudinal fasciculus R',
+    17: 'Uncinate fasciculus L',
+    18: 'Uncinate fasciculus R',
+    19: 'Superior longitudinal fasciculus (temporal) L',
+    20: 'Superior longitudinal fasciculus (temporal) R',
+}
 
 
 def load(path):
@@ -112,7 +136,9 @@ def roi_stats(vals, fa_weights):
 
 print('Loading maps...')
 labels = load(f'{subj_dir}/atlas/JHU_labels_subj.nii.gz').astype(int)
-fa     = load(f'{subj_dir}/dti/FA.nii.gz')
+fa_dti   = f'{subj_dir}/dti/FA.nii.gz'
+fa_atlas = f'{subj_dir}/atlas/FA_atlas.nii.gz'
+fa = load(fa_dti if os.path.exists(fa_dti) else fa_atlas)
 
 maps = {
     'MVF_basic':        load(f'{subj_dir}/mimm/MVF_basic.nii.gz'),
@@ -209,4 +235,52 @@ print(f'\nMost asymmetric tracts (|LI| for MVF_basic):')
 lat_df['MVF_basic_LI_abs'] = lat_df['MVF_basic_LI'].abs()
 print(lat_df.nlargest(5, 'MVF_basic_LI_abs')[['tract', 'MVF_basic_LI']].to_string(index=False))
 
-## is JHU atlas in MNI space?
+# -------------------------------------------------------------------------
+# JHU Tractography atlas (thr25) — 20 tracts
+# -------------------------------------------------------------------------
+tracts_path = f'{subj_dir}/atlas/JHU_tracts_subj.nii.gz'
+if os.path.exists(tracts_path):
+    print('\n--- JHU Tractography atlas (thr25, 20 tracts) ---')
+    tract_labels = load(tracts_path).astype(int)
+    tract_rows = []
+    for idx, name in sorted(JHU_TRACTS.items()):
+        roi_mask = tract_labels == idx
+        n_vox = int(roi_mask.sum())
+        if n_vox == 0:
+            continue
+        fa_weights = fa[roi_mask].clip(min=0)
+        row = {'ROI_index': idx, 'ROI_name': name, 'n_voxels': n_vox}
+        for map_name, vol in maps.items():
+            s = roi_stats(vol[roi_mask], fa_weights)
+            for stat_name, val in s.items():
+                row[f'{map_name}_{stat_name}'] = val
+        mvf  = maps['MVF_basic'][roi_mask]
+        cneg = maps['chi_neg_chisep'][roi_mask]
+        finite = np.isfinite(mvf) & np.isfinite(cneg)
+        if finite.sum() > 2:
+            r, p = stats.pearsonr(mvf[finite], cneg[finite])
+            row['r_MVF_vs_chineg'] = float(r)
+            row['p_MVF_vs_chineg'] = float(p)
+        else:
+            row['r_MVF_vs_chineg'] = np.nan
+            row['p_MVF_vs_chineg'] = np.nan
+        tract_rows.append(row)
+
+    tract_df = pd.DataFrame(tract_rows)
+    tract_csv = os.path.join(out_dir, 'roi_stats_tracts.csv')
+    tract_df.to_csv(tract_csv, index=False, float_format='%.5f')
+    print(f'Saved: {tract_csv}  ({len(tract_rows)} tracts)')
+    print(tract_df.nlargest(10, 'MVF_basic_fa_weighted_mean')[
+        ['ROI_name', 'MVF_basic_fa_weighted_mean', 'MVF_atlas_fa_weighted_mean',
+         'g_ratio_basic_mean', 'r_MVF_vs_chineg', 'n_voxels']
+    ].to_string(index=False))
+
+    # ---- Atlas comparison: within-ROI CV (lower = more homogeneous) ----
+    print('\n--- Atlas comparison: mean within-ROI CV for MVF_basic ---')
+    print(f'  DTI-81  (48 ROIs, {int(df["n_voxels"].mean())} vox/ROI avg): '
+          f'CV = {df["MVF_basic_cv"].mean():.3f}')
+    print(f'  Tracts  (20 ROIs, {int(tract_df["n_voxels"].mean())} vox/ROI avg): '
+          f'CV = {tract_df["MVF_basic_cv"].mean():.3f}')
+    print('  (Lower CV = more homogeneous ROIs = better atlas for microstructure)')
+else:
+    print('\nJHU tractography atlas not found — skipping (run register_atlas.sh first)')

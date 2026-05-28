@@ -193,6 +193,10 @@ for v in [qsm, r2s, mvf_b, mvf_a, fvf, gratio, chim, chii, err, fa, theta,
           chisep_neg, chisep_pos]:
     v[~brain] = 0
 
+# White matter mask: brain AND FA_atlas > 0.20 (excludes GM for microstructure maps)
+# Population-average FA is low; 0.20 gives ~180k voxels, primarily WM
+wm = brain & (fa > 0.20)
+
 # MIMM chi_myelin is negative (diamagnetic); take abs for comparison
 chim_abs = np.abs(chim)
 
@@ -209,45 +213,45 @@ make_figure(qsm, 'QSM — Susceptibility Map', 'RdBu_r',
 
 # 3. R2*
 make_figure(r2s, 'R2* Map', 'hot',
-            0, 50, 's⁻¹', brain, '03_R2star.png', bg=mag)
+            0, 35, 's⁻¹', brain, '03_R2star.png', bg=mag)
 
-# 4. MVF Basic
+# 4. MVF Basic — WM mask to exclude GM false positives
 make_figure(mvf_b, 'MVF — Basic (no orientation prior)', 'hot',
-            0, 0.50, 'fraction', brain, '04_MVF_basic.png', bg=mag)
+            0, 0.50, 'fraction', wm, '04_MVF_basic.png', bg=mag)
 
-# 5. MVF Atlas
+# 5. MVF Atlas — WM mask
 make_figure(mvf_a, 'MVF — Atlas (HCP1065 orientation prior)', 'hot',
-            0, 0.50, 'fraction', brain, '05_MVF_atlas.png', bg=mag)
+            0, 0.50, 'fraction', wm, '05_MVF_atlas.png', bg=mag)
 
-# 6. MVF Basic vs Atlas difference
+# 6. MVF Basic vs Atlas difference — WM mask
 diff = mvf_b - mvf_a
-diff[~brain] = 0
+diff[~wm] = 0
 make_figure(diff, 'MVF Difference — Basic minus Atlas', 'RdBu_r',
-            -0.15, 0.15, 'fraction', brain, '06_MVF_diff.png', bg=mag)
+            -0.15, 0.15, 'fraction', wm, '06_MVF_diff.png', bg=mag)
 
-# 7. FVF
+# 7. FVF — WM mask
 make_figure(fvf, 'FVF — Fibre Volume Fraction', 'viridis',
-            0, 0.80, 'fraction', brain, '07_FVF.png', bg=mag)
+            0, 0.80, 'fraction', wm, '07_FVF.png', bg=mag)
 
-# 8. g-ratio
+# 8. g-ratio — WM mask
 make_figure(gratio, 'g-ratio', 'plasma',
-            0.5, 1.0, '-', brain, '08_g_ratio.png', bg=mag)
+            0.5, 1.0, '-', wm, '08_g_ratio.png', bg=mag)
 
-# 9. chi_myelin
+# 9. chi_myelin — WM mask
 make_figure(chim, 'χ myelin (diamagnetic)', 'Blues_r',
-            -0.055, 0, 'ppm', brain, '09_chi_myelin.png', bg=mag)
+            -0.055, 0, 'ppm', wm, '09_chi_myelin.png', bg=mag)
 
-# 10. chi_iron
+# 10. chi_iron — WM mask
 make_figure(chii, 'χ iron (paramagnetic)', 'Reds',
-            0, 0.10, 'ppm', brain, '10_chi_iron.png', bg=mag)
+            0, 0.10, 'ppm', wm, '10_chi_iron.png', bg=mag)
 
-# 11. FA atlas
+# 11. FA atlas — tighten scale to show actual WM FA range
 make_figure(fa, 'FA Atlas (HCP1065) in Subject Space', 'hot',
-            0, 1.0, '-', brain, '11_FA_atlas.png', bg=mag)
+            0, 0.5, '-', brain, '11_FA_atlas.png', bg=mag)
 
-# 12. Theta atlas
+# 12. Theta atlas — WM mask
 make_figure(theta, 'Fibre Angle θ relative to B0', 'hsv',
-            0, 90, 'degrees', brain, '12_theta_atlas.png', bg=mag)
+            0, 90, 'degrees', wm, '12_theta_atlas.png', bg=mag)
 
 # 13. Error map
 make_figure(err, 'MIMM Dictionary Matching Error', 'hot',

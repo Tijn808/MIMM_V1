@@ -2,7 +2,7 @@
 %
 % Acquisition parameters (fixed for MUMC protocol):
 %   Sequence : 3D ME-GRE (monopolar readout)
-%   Scanner  : 3T Siemens
+%   Scanner  : 3T Philips MR 7700
 %   TE       : 6, 12, 18, 24, 30 ms
 %   TR       : 35 ms
 %   Voxel    : 1 x 1 x 1 mm isotropic

@@ -22,10 +22,12 @@ SUBJ_DIR="${1:?Usage: $0 <subj_dir>}"
 if [ -n "$FSLDIR" ]; then
     FSL="${FSLDIR}/bin"
     STD="${FSLDIR}/data/standard"
+    ATLASDIR="${FSLDIR}/data/atlases"
     CFG="${FSLDIR}/etc/flirtsch"
 else
     FSL=/home/tijn-saes/fsl/bin
     STD=/home/tijn-saes/fsl/data/standard
+    ATLASDIR=/home/tijn-saes/fsl/data/atlases
     CFG=/home/tijn-saes/fsl/etc/flirtsch
 fi
 
@@ -98,17 +100,25 @@ echo "Computing theta map..."
 rm -f "${OUT}"/V1_comp_000*.nii.gz "${OUT}/V1_z_abs.nii.gz"
 
 # --- Step 8: warp JHU ICBM-DTI-81 labels to subject space ---
-# nearest-neighbour interpolation preserves integer label values
-echo "Warping JHU ICBM-DTI-81 labels to subject space..."
+echo "Warping JHU ICBM-DTI-81 labels (48 ROIs) to subject space..."
 "$FSL/applywarp" \
-    -i "${STD}/atlases/JHU/JHU-ICBM-labels-1mm.nii.gz" \
+    -i "${ATLASDIR}/JHU/JHU-ICBM-labels-1mm.nii.gz" \
     -r "$MAG_E1" \
     -w "${OUT}/mni2subj_warp.nii.gz" \
     -o "${OUT}/JHU_labels_subj.nii.gz" \
     --interp=nn
 
+# --- Step 9: warp JHU tractography atlas (thr25) to subject space ---
+echo "Warping JHU tractography atlas (20 tracts, thr25) to subject space..."
+"$FSL/applywarp" \
+    -i "${ATLASDIR}/JHU/JHU-ICBM-tracts-maxprob-thr25-1mm.nii.gz" \
+    -r "$MAG_E1" \
+    -w "${OUT}/mni2subj_warp.nii.gz" \
+    -o "${OUT}/JHU_tracts_subj.nii.gz" \
+    --interp=nn
+
 echo "Done. Atlas outputs written to: ${OUT}"
-echo "  FA_atlas.nii.gz"
-echo "  V1_atlas.nii.gz"
-echo "  theta_atlas.nii.gz"
+echo "  FA_atlas.nii.gz  V1_atlas.nii.gz  theta_atlas.nii.gz"
+echo "  JHU_labels_subj.nii.gz (48 DTI-81 ROIs)"
+echo "  JHU_tracts_subj.nii.gz (20 tractography tracts, thr25)"
 echo "  JHU_labels_subj.nii.gz"
