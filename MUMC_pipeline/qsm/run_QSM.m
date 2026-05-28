@@ -1,3 +1,7 @@
+% DEPRECATED — use run_QSM_chisep.m instead.
+% This script used the SEPIA toolbox which had issues with Philips scl_slope=740.
+% run_QSM_chisep.m uses the chi-sep toolbox directly and handles Philips data correctly.
+%
 % QSM reconstruction for MUMC ME-GRE data using SEPIA built-in functions
 %
 % Acquisition parameters (fixed for MUMC protocol):

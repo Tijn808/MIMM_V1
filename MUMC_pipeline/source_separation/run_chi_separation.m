@@ -1,5 +1,18 @@
-% Chi-separation: decompose QSM into paramagnetic (iron) and diamagnetic (myelin)
-% susceptibility components.
+% Chi-separation (T2-GRASE method): decompose QSM into paramagnetic (iron) and
+% diamagnetic (myelin) susceptibility components using R2' = R2* - R2.
+%
+% NOTE: This script requires T2-GRASE data (not yet available). When T2-GRASE
+% arrives, use THIS script for the final analysis — it is more accurate than
+% qsm/run_chisep_MUMC.m because it uses actual R2 from T2-GRASE rather than
+% the R2* proxy (which introduces ~57% error per PMC12620178).
+%
+% Two chi-sep pipelines in this repo:
+%   qsm/run_chisep_MUMC.m        ME-GRE only (MEDI algorithm, R2* proxy)
+%                                Outputs to:  <subj>/chisep/
+%                                Status:      DONE, used for current figures
+%   source_separation/this file  ME-GRE + T2-GRASE R2' (Shin et al. 2021)
+%                                Outputs to:  <subj>/source_separation/
+%                                Status:      PENDING — awaiting T2-GRASE data
 %
 % Method: Shin et al. 2021, NeuroImage 240:118371
 %   R2'    = R2* - R2          (reversible transverse relaxation rate)

@@ -189,8 +189,8 @@ end
 end
 
 % Save the global parameters to the dictionary.
-dictionary.chi_iso = chi_ani;
-dictionary.chi_ani = chi_iso;
+dictionary.chi_iso = chi_iso;
+dictionary.chi_ani = chi_ani;
 dictionary.chi_iron = chi_iron;
 dictionary.TE = TE;
 

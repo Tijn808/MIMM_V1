@@ -72,7 +72,9 @@ for si = 1:N
         MWF = [];
     end
 
-    % --- Load chi_neg map (from chi-separation) ---
+    % --- Load chi_neg map ---
+    % Uses the T2-GRASE-based chi-sep (source_separation/run_chi_separation.m)
+    % which requires T2-GRASE data. NOT the ME-GRE-only version in chisep/.
     chineg_file = fullfile(sdir, 'source_separation', 'chi_neg.nii.gz');
     if exist(chineg_file, 'file')
         chi_neg = double(niftiread(chineg_file));
