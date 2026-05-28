@@ -115,6 +115,48 @@ Residual issues (not fixable without better data):
 
 ## Experiments & Results
 
+### 2026-05-28 — Per-ROI MVF overestimation: basic vs atlas (MUMC subject)
+
+**Data:** Single MUMC subject (Philips 3T, TEs 6/12/18/24/30 ms).
+
+**Key finding: physics hypothesis confirmed — r=0.66, p<0.0001**
+
+Overestimation (basic − atlas) correlates strongly with mean fibre angle θ per ROI.
+Basic MIMM overestimates MVF most in tracts running perpendicular to B0 because without
+an orientation prior it attributes angle-dependent ME-GRE signal variation to myelin content.
+
+The regression line crosses zero at θ ≈ 30–35°:
+- θ < 30° (CST, medial lemniscus — parallel to B0): near-zero or slight underestimation
+- θ > 60° (CC, posterior thalamic radiation — perpendicular): systematic overestimation
+
+**Top overestimated ROIs:**
+| Tract | Basic | Atlas | Overest (abs) | Overest (%) | θ (°) |
+|---|---|---|---|---|---|
+| Splenium CC | 0.359 | 0.262 | +0.097 | +37% | 79.6 |
+| Post. thal. radiation L | 0.330 | 0.258 | +0.072 | +28% | 72.3 |
+| Post. thal. radiation R | 0.336 | 0.278 | +0.058 | +21% | 76.0 |
+| Retrolenticular IC R | 0.329 | 0.277 | +0.052 | +19% | 62.6 |
+| Body CC | 0.234 | 0.184 | +0.050 | +27% | 68.6 |
+| Genu CC | 0.247 | 0.198 | +0.049 | +25% | 76.8 |
+| Ant. limb IC L | 0.305 | 0.260 | +0.045 | +17% | 75.2 |
+
+**Only underestimated:** Medial lemniscus L (−7%) — runs parallel to B0 (θ=18°).
+
+**Notable outlier:** Splenium sits above the regression line — the combination of very high
+MVF (~0.36) AND near-perpendicular orientation (~80°) amplifies the absolute error beyond
+what theta alone predicts.
+
+**Scatter at high theta:** Several tracts at θ>70° show lower overestimation than expected.
+These are regions where FA_atlas < 0.25 — the atlas orientation prior never activates,
+so basic and atlas give identical results. This is a limitation of the atlas mode, not a feature.
+
+**Additional correlation:** overestimation vs mean FA: r=0.58, p<0.0001.
+High-FA tracts tend to be coherently oriented and thus most affected by orientation error.
+
+Figures: `23_overestimation_ranked.png`, `24_overestimation_vs_theta.png`, `25_overestimation_vs_FA.png`
+
+---
+
 ### 2026-05-26 — Per-ROI MVF overexpression: basic vs atlas (Zenodo example subject)
 
 **Data:** Zenodo single example subject (Şişman et al. 2025, DOI 10.5281/zenodo.10019720).
