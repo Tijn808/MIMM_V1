@@ -1,11 +1,13 @@
 #!/bin/bash
 # Register HCP1065 FA and V1 atlas into subject ME-GRE space.
+# Also warps the JHU ICBM-DTI-81 label atlas for ROI analysis.
 # Uses affine (flirt) + nonlinear (fnirt) registration for accurate WM tract alignment.
 #
 # Outputs (written to <subj_dir>/atlas/):
-#   FA_atlas.nii.gz      FA map in subject space
-#   V1_atlas.nii.gz      Principal eigenvector [x y z] in subject space
-#   theta_atlas.nii.gz   Fibre angle relative to B0 (degrees) in subject space
+#   FA_atlas.nii.gz        FA map in subject space
+#   V1_atlas.nii.gz        Principal eigenvector [x y z] in subject space
+#   theta_atlas.nii.gz     Fibre angle relative to B0 (degrees) in subject space
+#   JHU_labels_subj.nii.gz JHU ICBM-DTI-81 WM labels in subject space (48 labels)
 #
 # Usage: bash register_atlas.sh <subj_dir>
 #   subj_dir must contain:
@@ -15,9 +17,18 @@
 set -e
 
 SUBJ_DIR="${1:?Usage: $0 <subj_dir>}"
-FSL=/home/tijn-saes/fsl/bin
-STD=/home/tijn-saes/fsl/data/standard
-CFG=/home/tijn-saes/fsl/etc/flirtsch
+
+# FSL paths: honour $FSLDIR if set (conda, module-load, etc.), else fall back to server default
+if [ -n "$FSLDIR" ]; then
+    FSL="${FSLDIR}/bin"
+    STD="${FSLDIR}/data/standard"
+    CFG="${FSLDIR}/etc/flirtsch"
+else
+    FSL=/home/tijn-saes/fsl/bin
+    STD=/home/tijn-saes/fsl/data/standard
+    CFG=/home/tijn-saes/fsl/etc/flirtsch
+fi
+
 OUT="${SUBJ_DIR}/atlas"
 mkdir -p "$OUT"
 
@@ -86,7 +97,18 @@ echo "Computing theta map..."
 
 rm -f "${OUT}"/V1_comp_000*.nii.gz "${OUT}/V1_z_abs.nii.gz"
 
+# --- Step 8: warp JHU ICBM-DTI-81 labels to subject space ---
+# nearest-neighbour interpolation preserves integer label values
+echo "Warping JHU ICBM-DTI-81 labels to subject space..."
+"$FSL/applywarp" \
+    -i "${STD}/atlases/JHU/JHU-ICBM-labels-1mm.nii.gz" \
+    -r "$MAG_E1" \
+    -w "${OUT}/mni2subj_warp.nii.gz" \
+    -o "${OUT}/JHU_labels_subj.nii.gz" \
+    --interp=nn
+
 echo "Done. Atlas outputs written to: ${OUT}"
 echo "  FA_atlas.nii.gz"
 echo "  V1_atlas.nii.gz"
 echo "  theta_atlas.nii.gz"
+echo "  JHU_labels_subj.nii.gz"

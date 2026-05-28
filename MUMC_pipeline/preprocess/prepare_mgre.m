@@ -25,7 +25,7 @@ subj_dir  = '/home/tijn-saes/Documents/Internship/ME_GRE/';
 prefix    = '501';   % subject/series number prefix
 
 n_echoes  = 5;
-TE        = [0.006001, 0.012, 0.018, 0.024, 0.030];   % seconds, from JSON
+TE        = zeros(1, n_echoes);   % filled from JSON below
 
 %% --- Load and stack echoes ---
 
@@ -45,6 +45,8 @@ for e = 1:n_echoes
     % Apply Philips RWV scaling from JSON sidecar
     mag_json = jsondecode(fileread(mag_json_file));
     pha_json = jsondecode(fileread(pha_json_file));
+
+    TE(e) = mag_json.EchoTime;   % seconds, as reported by scanner
 
     mag_vol = mag_vol * mag_json.PhilipsRWVSlope + mag_json.PhilipsRWVIntercept;
 

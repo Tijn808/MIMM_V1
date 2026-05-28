@@ -1,18 +1,31 @@
 """
-Extract mean ± SD of MIMM and chi-separation maps per JHU white matter ROI.
-Saves results to subj_dir/analysis/roi_stats.csv.
+Extract per-ROI statistics from MIMM and chi-separation maps using the JHU atlas.
+
+Per map, per ROI:
+  mean, SD, median, IQR, 5th/95th percentiles, CV, FA-weighted mean
+
+Per ROI (map-independent):
+  Pearson r between MVF_basic and chi_neg_chisep (voxel-level validation metric)
+
+Post-loop:
+  Laterality index for all paired R/L tracts (labels 7–50)
+
+Saves results to subj_dir/analysis/roi_stats.csv
+             and subj_dir/analysis/laterality.csv
 """
 
 import numpy as np
 import nibabel as nib
 import pandas as pd
+from scipy import stats
 import os
 
-subj_dir  = '/home/tijn-saes/Documents/Internship/ME_GRE'
-out_dir   = os.path.join(subj_dir, 'analysis')
+subj_dir = '/home/tijn-saes/Documents/Internship/ME_GRE'
+out_dir  = os.path.join(subj_dir, 'analysis')
 os.makedirs(out_dir, exist_ok=True)
 
 # --- JHU label names (index 1–50) ---
+# Labels 1–6 are midline structures; 7–50 are paired R (odd) / L (even)
 JHU_LABELS = {
      1: 'Middle cerebellar peduncle',
      2: 'Pontine crossing tract',
@@ -66,47 +79,134 @@ JHU_LABELS = {
     50: 'Fornix (cres) L',
 }
 
+# Paired R/L label indices: (R_label, L_label, tract_name)
+LATERAL_PAIRS = [
+    (idx, idx + 1, JHU_LABELS[idx].replace(' R', ''))
+    for idx in range(7, 50, 2)
+]
+
+
 def load(path):
     return np.array(nib.load(path).dataobj).astype(np.float32)
 
+
+def roi_stats(vals, fa_weights):
+    """Compute all per-map statistics for a 1D array of voxel values."""
+    vals = vals[np.isfinite(vals)]
+    if len(vals) == 0:
+        return {k: np.nan for k in
+                ['mean', 'sd', 'median', 'iqr', 'p05', 'p95', 'cv', 'fa_weighted_mean']}
+    mean = float(np.mean(vals))
+    sd   = float(np.std(vals))
+    return {
+        'mean':           mean,
+        'sd':             sd,
+        'median':         float(np.median(vals)),
+        'iqr':            float(np.percentile(vals, 75) - np.percentile(vals, 25)),
+        'p05':            float(np.percentile(vals, 5)),
+        'p95':            float(np.percentile(vals, 95)),
+        'cv':             float(sd / mean) if mean != 0 else np.nan,
+        'fa_weighted_mean': float(np.average(vals, weights=fa_weights[np.isfinite(vals)])),
+    }
+
+
 print('Loading maps...')
 labels = load(f'{subj_dir}/atlas/JHU_labels_subj.nii.gz').astype(int)
+fa     = load(f'{subj_dir}/dti/FA.nii.gz')
 
 maps = {
-    'MVF_basic':            load(f'{subj_dir}/mimm/MVF_basic.nii.gz'),
-    'MVF_atlas':            load(f'{subj_dir}/mimm/MVF_Atlas.nii.gz'),
-    'FVF_basic':            load(f'{subj_dir}/mimm/FVF_basic.nii.gz'),
-    'FVF_atlas':            load(f'{subj_dir}/mimm/FVF_Atlas.nii.gz'),
-    'g_ratio_basic':        load(f'{subj_dir}/mimm/g_ratio_basic.nii.gz'),
-    'g_ratio_atlas':        load(f'{subj_dir}/mimm/g_ratio_Atlas.nii.gz'),
-    'R2s_basic':            load(f'{subj_dir}/mimm/R2s_basic.nii.gz'),
-    'R2s_atlas':            load(f'{subj_dir}/mimm/R2s_Atlas.nii.gz'),
-    'chi_myelin_basic':     np.abs(load(f'{subj_dir}/mimm/chi_myelin_basic.nii.gz')),
-    'chi_myelin_atlas':     np.abs(load(f'{subj_dir}/mimm/chi_myelin_Atlas.nii.gz')),
-    'chi_iron_basic':       load(f'{subj_dir}/mimm/chi_iron_est_basic.nii.gz'),
-    'chi_iron_atlas':       load(f'{subj_dir}/mimm/chi_iron_est_Atlas.nii.gz'),
-    'chi_neg_chisep':       load(f'{subj_dir}/chisep/chi_neg.nii.gz'),
-    'chi_pos_chisep':       load(f'{subj_dir}/chisep/chi_pos.nii.gz'),
+    'MVF_basic':        load(f'{subj_dir}/mimm/MVF_basic.nii.gz'),
+    'MVF_atlas':        load(f'{subj_dir}/mimm/MVF_Atlas.nii.gz'),
+    'FVF_basic':        load(f'{subj_dir}/mimm/FVF_basic.nii.gz'),
+    'FVF_atlas':        load(f'{subj_dir}/mimm/FVF_Atlas.nii.gz'),
+    'g_ratio_basic':    load(f'{subj_dir}/mimm/g_ratio_basic.nii.gz'),
+    'g_ratio_atlas':    load(f'{subj_dir}/mimm/g_ratio_Atlas.nii.gz'),
+    'R2s_basic':        load(f'{subj_dir}/mimm/R2s_basic.nii.gz'),
+    'R2s_atlas':        load(f'{subj_dir}/mimm/R2s_Atlas.nii.gz'),
+    'chi_myelin_basic': np.abs(load(f'{subj_dir}/mimm/chi_myelin_basic.nii.gz')),
+    'chi_myelin_atlas': np.abs(load(f'{subj_dir}/mimm/chi_myelin_Atlas.nii.gz')),
+    'chi_iron_basic':   load(f'{subj_dir}/mimm/chi_iron_est_basic.nii.gz'),
+    'chi_iron_atlas':   load(f'{subj_dir}/mimm/chi_iron_est_Atlas.nii.gz'),
+    'chi_neg_chisep':   load(f'{subj_dir}/chisep/chi_neg.nii.gz'),
+    'chi_pos_chisep':   load(f'{subj_dir}/chisep/chi_pos.nii.gz'),
 }
 
+# -------------------------------------------------------------------------
+# Main loop: per-ROI statistics
+# -------------------------------------------------------------------------
 print('Extracting ROI statistics...')
 rows = []
+
 for idx, name in sorted(JHU_LABELS.items()):
     roi_mask = labels == idx
-    n_vox = roi_mask.sum()
+    n_vox = int(roi_mask.sum())
     if n_vox == 0:
         continue
+
+    fa_weights = fa[roi_mask].clip(min=0)   # negative FA values are artefacts
+
     row = {'ROI_index': idx, 'ROI_name': name, 'n_voxels': n_vox}
+
     for map_name, vol in maps.items():
-        vals = vol[roi_mask]
-        row[f'{map_name}_mean'] = float(np.mean(vals))
-        row[f'{map_name}_sd']   = float(np.std(vals))
+        s = roi_stats(vol[roi_mask], fa_weights)
+        for stat_name, val in s.items():
+            row[f'{map_name}_{stat_name}'] = val
+
+    # Within-ROI Pearson r: MVF_basic vs chi_neg_chisep
+    mvf  = maps['MVF_basic'][roi_mask]
+    cneg = maps['chi_neg_chisep'][roi_mask]
+    finite = np.isfinite(mvf) & np.isfinite(cneg)
+    if finite.sum() > 2:
+        r, p = stats.pearsonr(mvf[finite], cneg[finite])
+        row['r_MVF_vs_chineg'] = float(r)
+        row['p_MVF_vs_chineg'] = float(p)
+    else:
+        row['r_MVF_vs_chineg'] = np.nan
+        row['p_MVF_vs_chineg'] = np.nan
+
     rows.append(row)
 
 df = pd.DataFrame(rows)
 out_csv = os.path.join(out_dir, 'roi_stats.csv')
 df.to_csv(out_csv, index=False, float_format='%.5f')
-print(f'Saved: {out_csv}')
-print(f'\n{len(rows)} ROIs extracted')
-print(f'\nTop 10 ROIs by MVF_basic:')
-print(df.nlargest(10, 'MVF_basic_mean')[['ROI_name', 'MVF_basic_mean', 'MVF_atlas_mean', 'g_ratio_basic_mean', 'FVF_basic_mean']].to_string(index=False))
+print(f'Saved: {out_csv}  ({len(rows)} ROIs)')
+
+# -------------------------------------------------------------------------
+# Laterality index: LI = (R - L) / (R + L) for paired tracts
+# -------------------------------------------------------------------------
+print('Computing laterality indices...')
+lat_rows = []
+
+for r_idx, l_idx, tract_name in LATERAL_PAIRS:
+    r_row = df[df['ROI_index'] == r_idx]
+    l_row = df[df['ROI_index'] == l_idx]
+    if r_row.empty or l_row.empty:
+        continue
+
+    lat_row = {'tract': tract_name}
+    for map_name in maps:
+        r_mean = r_row[f'{map_name}_mean'].values[0]
+        l_mean = l_row[f'{map_name}_mean'].values[0]
+        denom  = r_mean + l_mean
+        lat_row[f'{map_name}_LI'] = float((r_mean - l_mean) / denom) if denom != 0 else np.nan
+    lat_rows.append(lat_row)
+
+lat_df = pd.DataFrame(lat_rows)
+lat_csv = os.path.join(out_dir, 'laterality.csv')
+lat_df.to_csv(lat_csv, index=False, float_format='%.5f')
+print(f'Saved: {lat_csv}  ({len(lat_rows)} tract pairs)')
+
+# -------------------------------------------------------------------------
+# Terminal summary
+# -------------------------------------------------------------------------
+print(f'\nTop 10 ROIs by FA-weighted MVF (basic):')
+print(df.nlargest(10, 'MVF_basic_fa_weighted_mean')[
+    ['ROI_name', 'MVF_basic_fa_weighted_mean', 'MVF_atlas_fa_weighted_mean',
+     'g_ratio_basic_mean', 'r_MVF_vs_chineg']
+].to_string(index=False))
+
+print(f'\nMost asymmetric tracts (|LI| for MVF_basic):')
+lat_df['MVF_basic_LI_abs'] = lat_df['MVF_basic_LI'].abs()
+print(lat_df.nlargest(5, 'MVF_basic_LI_abs')[['tract', 'MVF_basic_LI']].to_string(index=False))
+
+## is JHU atlas in MNI space?
