@@ -1,4 +1,4 @@
-mimm_root = '/home/tijn-saes/Documents/Internship/MIMM';
+mimm_root = fileparts(fileparts(mfilename('fullpath')));
 
 orig = load(fullfile(mimm_root, 'Dictionary', 'MIMM_dictionary_stochastic.mat'), 'dictionary');
 mumc = load(fullfile(mimm_root, 'Dictionary', 'MIMM_dictionary_stochastic_MUMC.mat'), 'dictionary');

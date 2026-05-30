@@ -25,15 +25,33 @@
 %% --- Acquisition parameters (do not change for MUMC data) ---
 
 TE     = [6, 12, 18, 24, 30] * 1e-3;   % echo times in seconds
-lambda_chi = 0.015;                      % QSM/magnitude weighting (L-curve optimised)
+lambda_chi = 0.015;                      % QSM/magnitude weighting (paper L-curve default)
 
-%% --- Paths (adapt per subject) ---
+%% --- Paths (loaded from MUMC_pipeline/paths.m) ---
 
-mimm_root = '/home/tijn-saes/Documents/Internship/MIMM';
-subj_dir  = '/home/tijn-saes/Documents/Internship/ME_GRE/';
-output_dir = fullfile(subj_dir, 'mimm');
+paths_file = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'paths.m');
+if ~exist(paths_file, 'file')
+    error('paths.m not found. Copy MUMC_pipeline/paths_template.m to paths.m and fill in your paths.');
+end
+run(paths_file);
+output_dir = mimm_dir;
 
-if ~exist(output_dir, 'dir'); mkdir(output_dir); end
+% lambda_chi precedence (each lives in a data file, not hard-coded, so the
+% choice stays explicit and reversible — delete the file to fall back):
+%   1. cohort-locked value (next to paths.m)   — shared by all subjects
+%   2. per-subject sweep recommendation        — this subject's own knee
+%   3. paper default 0.015                      — if neither file exists
+cohort_file = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'lambda_chi_cohort.txt');
+rec_file    = fullfile(mimm_dir, 'lambda_chi_recommended.txt');
+if exist(cohort_file, 'file')
+    lambda_chi = str2double(strtrim(fileread(cohort_file)));
+    fprintf('Using cohort-locked lambda_chi = %.4g (from %s).\n', lambda_chi, cohort_file);
+elseif exist(rec_file, 'file')
+    lambda_chi = str2double(strtrim(fileread(rec_file)));
+    fprintf('Using per-subject lambda_chi = %.4g (from %s).\n', lambda_chi, rec_file);
+else
+    fprintf('Using default lambda_chi = %.4g (run sweep_lambda_chi.m to tune).\n', lambda_chi);
+end
 
 %% --- Add MIMM toolbox to path ---
 

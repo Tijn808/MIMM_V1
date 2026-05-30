@@ -1,4 +1,4 @@
-cd('/home/tijn-saes/Documents/Internship/MIMM')
+cd(fileparts(fileparts(mfilename('fullpath'))))
 MIMM_set_path
 determ = load('MIMM_dictionary_deterministic.mat');
 dict = determ.dictionary;

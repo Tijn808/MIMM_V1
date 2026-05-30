@@ -6,7 +6,7 @@
 %
 % Outputs written to: Example_Results/nifti/
 
-cd('/home/tijn-saes/Documents/Internship/MIMM')
+cd(fileparts(fileparts(mfilename('fullpath'))))
 MIMM_set_path
 
 %% --- Load results ---

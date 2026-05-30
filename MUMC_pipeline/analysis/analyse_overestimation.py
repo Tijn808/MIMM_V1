@@ -20,12 +20,14 @@ import matplotlib.patheffects as pe
 from scipy import stats
 import os
 
-subj_dir = '/home/tijn-saes/Documents/Internship/ME_GRE'
-out_dir  = os.path.join(subj_dir, 'figures')
+try:
+    from paths import OUTPUT_DIR as subj_dir, FIG_DIR as out_dir, ANALYSIS_DIR
+except ImportError:
+    raise SystemExit('Copy MUMC_pipeline/analysis/paths_template.py to paths.py and fill in your paths.')
 os.makedirs(out_dir, exist_ok=True)
 
 # ── Load ROI stats and compute overestimation ─────────────────────────────────
-df = pd.read_csv(os.path.join(subj_dir, 'analysis', 'roi_stats.csv'))
+df = pd.read_csv(os.path.join(ANALYSIS_DIR, 'roi_stats.csv'))
 
 df['overest_abs']     = df['MVF_basic_mean'] - df['MVF_atlas_mean']
 df['overest_rel']     = (df['overest_abs'] / df['MVF_atlas_mean']) * 100
@@ -35,9 +37,9 @@ df['overest_abs_faw'] = df['MVF_basic_fa_weighted_mean'] - df['MVF_atlas_fa_weig
 def load(path):
     return np.array(nib.load(path).dataobj).astype(np.float32)
 
-labels = load(f'{subj_dir}/atlas/JHU_labels_subj.nii.gz').astype(int)
-theta  = load(f'{subj_dir}/atlas/theta_atlas.nii.gz')
-fa     = load(f'{subj_dir}/atlas/FA_atlas.nii.gz')
+labels = load(os.path.join(subj_dir, 'atlas', 'JHU_labels_subj.nii.gz')).astype(int)
+theta  = load(os.path.join(subj_dir, 'atlas', 'theta_atlas.nii.gz'))
+fa     = load(os.path.join(subj_dir, 'atlas', 'FA_atlas.nii.gz'))
 
 theta_means, fa_means = [], []
 for idx in df['ROI_index']:

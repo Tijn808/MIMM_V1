@@ -3,7 +3,7 @@
 % dictionary (0:3:60 ms), so no interpolation is needed — just extract
 % the matching columns directly.
 
-mimm_root = '/home/tijn-saes/Documents/Internship/MIMM';
+mimm_root = fileparts(fileparts(mfilename('fullpath')));
 
 orig_file = fullfile(mimm_root, 'Dictionary', 'MIMM_dictionary_stochastic.mat');
 out_file  = fullfile(mimm_root, 'Dictionary', 'MIMM_dictionary_stochastic_MUMC.mat');

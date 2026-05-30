@@ -7,10 +7,13 @@ import numpy as np
 import nibabel as nib
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
+from scipy.stats import pearsonr
 import os
 
-subj_dir  = '/home/tijn-saes/Documents/Internship/ME_GRE'
-out_dir   = os.path.join(subj_dir, 'figures')
+try:
+    from paths import OUTPUT_DIR as subj_dir, FIG_DIR as out_dir
+except ImportError:
+    raise SystemExit('Copy MUMC_pipeline/analysis/paths_template.py to paths.py and fill in your paths.')
 os.makedirs(out_dir, exist_ok=True)
 
 def load(path):
@@ -170,23 +173,23 @@ def make_figure(vol, title, cmap, vmin, vmax, unit, mask, fname, bg=None):
 
 # --- Load data ---
 print('Loading data...')
-brain  = load(f'{subj_dir}/qsm/brain_mask.nii.gz') > 0
-mag    = load(f'{subj_dir}/qsm/mag_e1.nii.gz')
-qsm    = load(f'{subj_dir}/qsm/QSM.nii.gz')
-r2s    = load(f'{subj_dir}/qsm/R2star.nii.gz')
-mvf_b  = load(f'{subj_dir}/mimm/MVF_basic.nii.gz')
-mvf_a  = load(f'{subj_dir}/mimm/MVF_Atlas.nii.gz')
-fvf    = load(f'{subj_dir}/mimm/FVF_basic.nii.gz')
-gratio = load(f'{subj_dir}/mimm/g_ratio_basic.nii.gz')
-chim   = load(f'{subj_dir}/mimm/chi_myelin_basic.nii.gz')
-chii   = load(f'{subj_dir}/mimm/chi_iron_est_basic.nii.gz')
-err    = load(f'{subj_dir}/mimm/error_basic.nii.gz')
-fa     = load(f'{subj_dir}/atlas/FA_atlas.nii.gz')
-theta  = load(f'{subj_dir}/atlas/theta_atlas.nii.gz')
+brain  = load(os.path.join(subj_dir, 'qsm',   'brain_mask.nii.gz')) > 0
+mag    = load(os.path.join(subj_dir, 'qsm',   'mag_e1.nii.gz'))
+qsm    = load(os.path.join(subj_dir, 'qsm',   'QSM.nii.gz'))
+r2s    = load(os.path.join(subj_dir, 'qsm',   'R2star.nii.gz'))
+mvf_b  = load(os.path.join(subj_dir, 'mimm',  'MVF_basic.nii.gz'))
+mvf_a  = load(os.path.join(subj_dir, 'mimm',  'MVF_Atlas.nii.gz'))
+fvf    = load(os.path.join(subj_dir, 'mimm',  'FVF_basic.nii.gz'))
+gratio = load(os.path.join(subj_dir, 'mimm',  'g_ratio_basic.nii.gz'))
+chim   = load(os.path.join(subj_dir, 'mimm',  'chi_myelin_basic.nii.gz'))
+chii   = load(os.path.join(subj_dir, 'mimm',  'chi_iron_est_basic.nii.gz'))
+err    = load(os.path.join(subj_dir, 'mimm',  'error_basic.nii.gz'))
+fa     = load(os.path.join(subj_dir, 'atlas', 'FA_atlas.nii.gz'))
+theta  = load(os.path.join(subj_dir, 'atlas', 'theta_atlas.nii.gz'))
 
 # Chi-separation outputs
-chisep_neg = load(f'{subj_dir}/chisep/chi_neg.nii.gz')   # diamagnetic (myelin)
-chisep_pos = load(f'{subj_dir}/chisep/chi_pos.nii.gz')   # paramagnetic (iron)
+chisep_neg = load(os.path.join(subj_dir, 'chisep', 'chi_neg.nii.gz'))   # diamagnetic (myelin)
+chisep_pos = load(os.path.join(subj_dir, 'chisep', 'chi_pos.nii.gz'))   # paramagnetic (iron)
 
 # Mask values outside brain
 for v in [qsm, r2s, mvf_b, mvf_a, fvf, gratio, chim, chii, err, fa, theta,
@@ -197,8 +200,9 @@ for v in [qsm, r2s, mvf_b, mvf_a, fvf, gratio, chim, chii, err, fa, theta,
 # Population-average FA is low; 0.20 gives ~180k voxels, primarily WM
 wm = brain & (fa > 0.20)
 
-# MIMM chi_myelin is negative (diamagnetic); take abs for comparison
-chim_abs = np.abs(chim)
+# Both MIMM chi_myelin and chi-sep chi_neg are diamagnetic (negative ppm); take abs throughout
+chim_abs       = np.abs(chim)
+chisep_neg_abs = np.abs(chisep_neg)
 
 print('Generating figures...')
 
@@ -259,8 +263,8 @@ make_figure(err, 'MIMM Dictionary Matching Error', 'hot',
 
 # 14. Chi myelin comparison: MIMM vs chi-separation
 make_comparison_figure(
-    chim_abs,   'MIMM χ myelin (|diamagnetic|)',
-    chisep_neg, 'χ-sep χ_neg (diamagnetic)',
+    chim_abs,       'MIMM |χ myelin|',
+    chisep_neg_abs, 'χ-sep |χ⁻|',
     'Diamagnetic Susceptibility — MIMM vs χ-separation',
     'Blues_r', 0, 0.15, 'ppm', brain, '14_chi_myelin_comparison.png', bg=mag)
 
@@ -277,8 +281,81 @@ make_bland_altman(chii, 'MIMM χ iron', chisep_pos, 'χ-sep χ_pos',
                   'ppm', brain, '16_BA_chi_iron.png')
 
 # 17. Bland-Altman: chi myelin — MIMM vs chi-sep
-make_bland_altman(chim_abs, 'MIMM |χ myelin|', chisep_neg, 'χ-sep χ_neg',
+make_bland_altman(chim_abs, 'MIMM |χ myelin|', chisep_neg_abs, 'χ-sep |χ⁻|',
                   'Bland-Altman — Diamagnetic Susceptibility (myelin)',
                   'ppm', brain, '17_BA_chi_myelin.png')
+
+# 30. Internal consistency check: MIMM chi_total (= chi_myelin + chi_iron) vs QSM
+# MIMM softly matches the sum of its two susceptibility components to the measured
+# QSM (chi_error term in MIMM.m, weighted by lambda_chi=0.015). If chi_total
+# systematically underestimates QSM, the model under-accounts for total tissue
+# susceptibility — the likely root of the diamagnetic/paramagnetic offsets in
+# figures 16-17. Whole-brain mask (matching is brain-wide, not WM-only).
+# chim is stored negative (diamagnetic), chii positive (paramagnetic): signed sum.
+chi_total = (chii + chim)
+
+v_qsm = qsm[brain].ravel()
+v_tot = chi_total[brain].ravel()
+finite = np.isfinite(v_qsm) & np.isfinite(v_tot)
+v_qsm, v_tot = v_qsm[finite], v_tot[finite]
+
+diff = v_tot - v_qsm
+bias = np.mean(diff)
+sd   = np.std(diff)
+loa_u, loa_l = bias + 1.96 * sd, bias - 1.96 * sd
+r_tot, _ = pearsonr(v_qsm, v_tot)
+slope, intercept = np.polyfit(v_qsm, v_tot, 1)
+
+fig, axes = plt.subplots(1, 2, figsize=(15, 6), facecolor='black')
+fig.suptitle('MIMM χ_total (χ_myelin + χ_iron) vs Measured QSM — Internal Consistency',
+             color='white', fontsize=15, fontweight='bold', y=1.02)
+
+# Panel A: Bland-Altman
+axA = axes[0]
+axA.set_facecolor('#111111')
+m_xy = (v_tot + v_qsm) / 2
+xlimA = (np.percentile(m_xy, 1), np.percentile(m_xy, 99))
+ylimA = (np.percentile(diff, 1), np.percentile(diff, 99))
+ypad = (ylimA[1] - ylimA[0]) * 0.2
+ylimA = (ylimA[0] - ypad, ylimA[1] + ypad)
+keep = ((m_xy >= xlimA[0]) & (m_xy <= xlimA[1]) &
+        (diff >= ylimA[0]) & (diff <= ylimA[1]))
+axA.hist2d(m_xy[keep], diff[keep], bins=150, cmap='hot', cmin=1)
+axA.axhline(bias,  color='cyan',   lw=1.8, ls='--', label=f'Bias = {bias:.3f} ppm')
+axA.axhline(loa_u, color='yellow', lw=1.4, ls=':',  label=f'+1.96 SD = {loa_u:.3f} ppm')
+axA.axhline(loa_l, color='yellow', lw=1.4, ls=':',  label=f'−1.96 SD = {loa_l:.3f} ppm')
+axA.axhline(0,     color='white',  lw=0.8, alpha=0.3)
+axA.set_xlim(xlimA); axA.set_ylim(ylimA)
+axA.set_xlabel('Mean (χ_total, QSM)  [ppm]', color='white', fontsize=11)
+axA.set_ylabel('χ_total − QSM  [ppm]', color='white', fontsize=11)
+axA.set_title('Bland-Altman', color='white', fontsize=12)
+axA.tick_params(colors='white')
+for s in axA.spines.values(): s.set_edgecolor('white')
+axA.legend(fontsize=9, facecolor='#222222', edgecolor='white', labelcolor='white')
+
+# Panel B: density scatter with identity + regression
+axB = axes[1]
+axB.set_facecolor('#111111')
+lim = (np.percentile(v_qsm, 1), np.percentile(v_qsm, 99))
+keepB = (v_qsm >= lim[0]) & (v_qsm <= lim[1]) & (v_tot >= lim[0]) & (v_tot <= lim[1])
+axB.hist2d(v_qsm[keepB], v_tot[keepB], bins=150, cmap='hot', cmin=1)
+axB.plot(lim, lim, '-', color='#888888', lw=1.2, label='Identity (y = x)')
+x_fit = np.linspace(lim[0], lim[1], 100)
+axB.plot(x_fit, slope * x_fit + intercept, '--', color='cyan', lw=1.5,
+         label=f'Fit: slope={slope:.2f}, r={r_tot:.2f}')
+axB.set_xlim(lim); axB.set_ylim(lim)
+axB.set_xlabel('Measured QSM  [ppm]', color='white', fontsize=11)
+axB.set_ylabel('MIMM χ_total  [ppm]', color='white', fontsize=11)
+axB.set_title('Scatter (slope < 1 = χ_total compresses QSM range)', color='white', fontsize=12)
+axB.tick_params(colors='white')
+for s in axB.spines.values(): s.set_edgecolor('white')
+axB.legend(fontsize=9, facecolor='#222222', edgecolor='white', labelcolor='white')
+
+plt.tight_layout()
+plt.savefig(os.path.join(out_dir, '30_chi_total_vs_QSM.png'),
+            dpi=150, bbox_inches='tight', facecolor='black', edgecolor='none')
+plt.close()
+print('Saved: 30_chi_total_vs_QSM.png')
+print(f'  chi_total vs QSM: bias={bias:.4f} ppm, slope={slope:.3f}, r={r_tot:.3f}')
 
 print(f'\nAll figures saved to: {out_dir}')

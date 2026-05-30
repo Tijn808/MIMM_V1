@@ -20,8 +20,10 @@ import pandas as pd
 from scipy import stats
 import os
 
-subj_dir = '/home/tijn-saes/Documents/Internship/ME_GRE'
-out_dir  = os.path.join(subj_dir, 'analysis')
+try:
+    from paths import OUTPUT_DIR as subj_dir, ANALYSIS_DIR as out_dir
+except ImportError:
+    raise SystemExit('Copy MUMC_pipeline/analysis/paths_template.py to paths.py and fill in your paths.')
 os.makedirs(out_dir, exist_ok=True)
 
 # --- JHU label names (index 1–50) ---
@@ -135,26 +137,26 @@ def roi_stats(vals, fa_weights):
 
 
 print('Loading maps...')
-labels = load(f'{subj_dir}/atlas/JHU_labels_subj.nii.gz').astype(int)
-fa_dti   = f'{subj_dir}/dti/FA.nii.gz'
-fa_atlas = f'{subj_dir}/atlas/FA_atlas.nii.gz'
+labels = load(os.path.join(subj_dir, 'atlas', 'JHU_labels_subj.nii.gz')).astype(int)
+fa_dti   = os.path.join(subj_dir, 'dti',   'FA.nii.gz')
+fa_atlas = os.path.join(subj_dir, 'atlas', 'FA_atlas.nii.gz')
 fa = load(fa_dti if os.path.exists(fa_dti) else fa_atlas)
 
 maps = {
-    'MVF_basic':        load(f'{subj_dir}/mimm/MVF_basic.nii.gz'),
-    'MVF_atlas':        load(f'{subj_dir}/mimm/MVF_Atlas.nii.gz'),
-    'FVF_basic':        load(f'{subj_dir}/mimm/FVF_basic.nii.gz'),
-    'FVF_atlas':        load(f'{subj_dir}/mimm/FVF_Atlas.nii.gz'),
-    'g_ratio_basic':    load(f'{subj_dir}/mimm/g_ratio_basic.nii.gz'),
-    'g_ratio_atlas':    load(f'{subj_dir}/mimm/g_ratio_Atlas.nii.gz'),
-    'R2s_basic':        load(f'{subj_dir}/mimm/R2s_basic.nii.gz'),
-    'R2s_atlas':        load(f'{subj_dir}/mimm/R2s_Atlas.nii.gz'),
-    'chi_myelin_basic': np.abs(load(f'{subj_dir}/mimm/chi_myelin_basic.nii.gz')),
-    'chi_myelin_atlas': np.abs(load(f'{subj_dir}/mimm/chi_myelin_Atlas.nii.gz')),
-    'chi_iron_basic':   load(f'{subj_dir}/mimm/chi_iron_est_basic.nii.gz'),
-    'chi_iron_atlas':   load(f'{subj_dir}/mimm/chi_iron_est_Atlas.nii.gz'),
-    'chi_neg_chisep':   load(f'{subj_dir}/chisep/chi_neg.nii.gz'),
-    'chi_pos_chisep':   load(f'{subj_dir}/chisep/chi_pos.nii.gz'),
+    'MVF_basic':        load(os.path.join(subj_dir, 'mimm', 'MVF_basic.nii.gz')),
+    'MVF_atlas':        load(os.path.join(subj_dir, 'mimm', 'MVF_Atlas.nii.gz')),
+    'FVF_basic':        load(os.path.join(subj_dir, 'mimm', 'FVF_basic.nii.gz')),
+    'FVF_atlas':        load(os.path.join(subj_dir, 'mimm', 'FVF_Atlas.nii.gz')),
+    'g_ratio_basic':    load(os.path.join(subj_dir, 'mimm', 'g_ratio_basic.nii.gz')),
+    'g_ratio_atlas':    load(os.path.join(subj_dir, 'mimm', 'g_ratio_Atlas.nii.gz')),
+    'R2s_basic':        load(os.path.join(subj_dir, 'mimm', 'R2s_basic.nii.gz')),
+    'R2s_atlas':        load(os.path.join(subj_dir, 'mimm', 'R2s_Atlas.nii.gz')),
+    'chi_myelin_basic': np.abs(load(os.path.join(subj_dir, 'mimm', 'chi_myelin_basic.nii.gz'))),
+    'chi_myelin_atlas': np.abs(load(os.path.join(subj_dir, 'mimm', 'chi_myelin_Atlas.nii.gz'))),
+    'chi_iron_basic':   load(os.path.join(subj_dir, 'mimm', 'chi_iron_est_basic.nii.gz')),
+    'chi_iron_atlas':   load(os.path.join(subj_dir, 'mimm', 'chi_iron_est_Atlas.nii.gz')),
+    'chi_neg_chisep':   load(os.path.join(subj_dir, 'chisep', 'chi_neg.nii.gz')),
+    'chi_pos_chisep':   load(os.path.join(subj_dir, 'chisep', 'chi_pos.nii.gz')),
 }
 
 # -------------------------------------------------------------------------
@@ -238,7 +240,7 @@ print(lat_df.nlargest(5, 'MVF_basic_LI_abs')[['tract', 'MVF_basic_LI']].to_strin
 # -------------------------------------------------------------------------
 # JHU Tractography atlas (thr25) — 20 tracts
 # -------------------------------------------------------------------------
-tracts_path = f'{subj_dir}/atlas/JHU_tracts_subj.nii.gz'
+tracts_path = os.path.join(subj_dir, 'atlas', 'JHU_tracts_subj.nii.gz')
 if os.path.exists(tracts_path):
     print('\n--- JHU Tractography atlas (thr25, 20 tracts) ---')
     tract_labels = load(tracts_path).astype(int)

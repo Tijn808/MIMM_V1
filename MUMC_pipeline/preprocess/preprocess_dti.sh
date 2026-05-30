@@ -24,7 +24,11 @@ set -e
 SUBJ_DIR="${1:?Usage: $0 <subj_dir> [reverse_b0.nii.gz]}"
 REVERSE_B0="${2:-}"          # optional: reverse-PE b=0 for topup
 
-FSL=/home/tijn-saes/fsl/bin
+if [ -n "$FSLDIR" ]; then
+    FSL="${FSLDIR}/bin"
+else
+    FSL=/home/tijn-saes/fsl/bin
+fi
 DTI_DIR="${SUBJ_DIR}/dti"
 MAG_E1="${SUBJ_DIR}/qsm/mag_e1.nii.gz"
 MASK="${SUBJ_DIR}/qsm/brain_mask.nii.gz"

@@ -10,7 +10,7 @@ Two outputs:
 chi_neg (ppm) is scaled to MVF units via OLS before differencing,
 matching the approach in bland_altman.m.
 
-Usage: edit SUBJ_DIRS and OUT_DIR at the top, then run.
+Usage: edit SUBJ_DIRS at the top, then run.
 """
 
 import numpy as np
@@ -25,13 +25,17 @@ import os
 # Configuration
 # ---------------------------------------------------------------------------
 
+try:
+    from paths import ANALYSIS_DIR as OUT_DIR
+except ImportError:
+    raise SystemExit('Copy MUMC_pipeline/analysis/paths_template.py to paths.py and fill in your paths.')
+
 SUBJ_DIRS = [
     # '/data/MUMC/sub-01',
     # '/data/MUMC/sub-02',
     # ...
 ]
 
-OUT_DIR      = '/home/tijn-saes/Documents/Internship/ME_GRE/analysis'
 MIMM_VARIANT = 'basic'   # 'basic' or 'Atlas'
 
 # JHU ROIs to show in the grid (label index → display name).

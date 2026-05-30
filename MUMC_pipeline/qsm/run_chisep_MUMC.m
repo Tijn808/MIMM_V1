@@ -17,12 +17,15 @@
 %   R2s.nii.gz         R2* map (s^-1)
 %   brain_mask.nii.gz  binary brain mask
 
-%% --- Paths ---
+%% --- Paths (loaded from MUMC_pipeline/paths.m) ---
 
-chisep_dir = '/home/tijn-saes/Documents/Internship/Chisep_Toolbox_v1.2.1';
-subj_dir   = '/home/tijn-saes/Documents/Internship/ME_GRE/';
-output_dir = '/home/tijn-saes/Documents/Internship/ME_GRE/chisep/';
-if ~exist(output_dir, 'dir'); mkdir(output_dir); end
+paths_file = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'paths.m');
+if ~exist(paths_file, 'file')
+    error('paths.m not found. Copy MUMC_pipeline/paths_template.m to paths.m and fill in your paths.');
+end
+run(paths_file);
+subj_dir   = input_dir;
+output_dir = chisep_out;
 
 %% --- Toolboxes ---
 

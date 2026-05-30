@@ -1,4 +1,4 @@
-cd('/home/tijn-saes/Documents/Internship/MIMM')
+cd(fileparts(fileparts(mfilename('fullpath'))))
 MIMM_set_path
 stoch = load('MIMM_dictionary_stochastic.mat');
 dict = stoch.dictionary;

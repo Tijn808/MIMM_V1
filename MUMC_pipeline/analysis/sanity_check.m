@@ -9,7 +9,12 @@
 %   5. Error map assessment
 %   6. Basic vs Atlas MVF difference
 
-subj_dir  = '/home/tijn-saes/Documents/Internship/ME_GRE/';
+paths_file = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'paths.m');
+if ~exist(paths_file, 'file')
+    error('paths.m not found. Copy MUMC_pipeline/paths_template.m to paths.m and fill in your paths.');
+end
+run(paths_file);
+subj_dir = input_dir;
 out_file  = fullfile(subj_dir, 'mimm', 'sanity_check_results.csv');
 
 %% --- Load maps ---

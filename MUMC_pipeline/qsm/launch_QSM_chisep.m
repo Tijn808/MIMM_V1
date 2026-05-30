@@ -1,1 +1,1 @@
-chisep_dir = '/home/tijn-saes/Documents/Internship/Chisep_Toolbox_v1.2.1'; run(fullfile(chisep_dir, 'setup_toolbox_paths.m')); run('/home/tijn-saes/Documents/Internship/MIMM/MUMC_pipeline/qsm/run_QSM_chisep.m');
+run(fullfile(fileparts(mfilename('fullpath')), 'run_QSM_chisep.m'));

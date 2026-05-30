@@ -18,11 +18,16 @@
 %   magnitude.nii.gz    [224 x 224 x 154 x 5]  double, RWV-scaled
 %   phase.nii.gz        [224 x 224 x 154 x 5]  double, radians [-pi, pi]
 
-%% --- Paths (adapt per subject) ---
+%% --- Paths (loaded from MUMC_pipeline/paths.m) ---
 
-data_dir  = '/home/tijn-saes/Documents/Internship/ME_GRE/';
-subj_dir  = '/home/tijn-saes/Documents/Internship/ME_GRE/';
-prefix    = '501';   % subject/series number prefix
+paths_file = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'paths.m');
+if ~exist(paths_file, 'file')
+    error('paths.m not found. Copy MUMC_pipeline/paths_template.m to paths.m and fill in your paths.');
+end
+run(paths_file);
+data_dir  = input_dir;
+subj_dir  = input_dir;
+prefix    = '501';   % subject/series number prefix — adapt per subject
 
 n_echoes  = 5;
 TE        = zeros(1, n_echoes);   % filled from JSON below

@@ -7,7 +7,7 @@
 % Run with:
 %   matlab -batch "run('/path/to/run_generate_dictionary_MUMC.m')"
 
-mimm_root = '/home/tijn-saes/Documents/Internship/MIMM';
+mimm_root = fileparts(fileparts(mfilename('fullpath')));
 
 addpath(fullfile(mimm_root, 'Dictionary_Generation'));
 

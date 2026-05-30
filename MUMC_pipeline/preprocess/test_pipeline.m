@@ -2,11 +2,15 @@
 % Creates a threshold-based mask and dummy QSM, then runs MIMM Basic.
 % Purpose: verify the full preprocessing → MIMM chain works on MUMC data format.
 
-cd('/home/tijn-saes/Documents/Internship/MIMM')
-MIMM_set_path
+paths_file = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'paths.m');
+if ~exist(paths_file, 'file')
+    error('paths.m not found. Copy MUMC_pipeline/paths_template.m to paths.m and fill in your paths.');
+end
+run(paths_file);
+run(fullfile(mimm_root, 'MIMM_set_path.m'));
 
-data_dir   = '/home/tijn-saes/Documents/Internship/ME_GRE/';
-output_dir = '/home/tijn-saes/Documents/Internship/ME_GRE/test_output/';
+data_dir   = input_dir;
+output_dir = fullfile(output_dir, 'test_output');
 if ~exist(output_dir, 'dir'); mkdir(output_dir); end
 
 TE         = [0.006001, 0.012, 0.018, 0.024, 0.030];
@@ -37,7 +41,7 @@ QSM = zeros(size(Brain_Mask));
 
 %% --- Load dictionary ---
 disp('Loading dictionary...')
-stoch = load('Dictionary/MIMM_dictionary_stochastic.mat');
+stoch = load(fullfile(mimm_root, 'Dictionary', 'MIMM_dictionary_stochastic.mat'));
 dict  = stoch.dictionary;
 
 %% --- Run MIMM Basic ---

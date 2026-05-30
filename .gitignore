@@ -11,11 +11,21 @@
 Example_Data/
 Example_Results/*.mat
 
+# Machine-specific config files (copy from *_template.m / *_template.py and edit)
+MUMC_pipeline/paths.m
+MUMC_pipeline/analysis/paths.py
+
 # External toolboxes (large, not project code)
 sepia/
 
 # MATLAB autosave files
 *.asv
 
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
 # OS files
 .DS_Store
+Thumbs.db
