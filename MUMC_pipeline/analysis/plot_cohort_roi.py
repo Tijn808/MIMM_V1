@@ -224,14 +224,29 @@ if {'chi_myelin_basic_mean', 'chi_neg_abs'}.issubset(df.columns):
                 fname='35_cohort_chi_myelin_vs_chineg.png',
                 highlight=HL_MYELIN, identity=True)
 
-# ── Figure 36: Cohort MVF vs FA (pending: uses fa_mean from atlas NIfTI) ─────
-# fa_mean is computed per-subject in plot_roi_stats.py from the NIfTI, not stored
-# in roi_stats.csv. For cohort use, each subject's per-ROI fa_mean is added to
-# all_subjects_long.csv if aggregate_cohort.py reads it — but currently fa_mean
-# is not in roi_stats.csv. This figure is deferred until fa_mean is added to
-# extract_roi_stats.py (see TODO below).
-print('Skipped: 36_cohort_MVF_vs_FA.png (fa_mean not yet in roi_stats.csv)')
-print('  TODO: add FA as a map in extract_roi_stats.py to make this cohort-ready.')
+# ── Figure 36: Cohort MVF vs FA ───────────────────────────────────────────────
+# FA_mean is now in cohort_roi_stats.csv (extract_roi_stats.py maps dict).
+# MVF basic is used (not atlas) — atlas uses the FA atlas for orientation,
+# which would artificially inflate the correlation.
+if {'FA_mean', 'MVF_basic_mean'}.issubset(df.columns):
+    HL_FA = {
+        'Splenium of corpus callosum':           'Splenium CC',
+        'Genu of corpus callosum':               'Genu CC',
+        'Posterior limb of internal capsule R':  'Post. IC',
+        'Corticospinal tract R':                 'CST',
+        'Cingulum (hippocampus) R':              'Cing. (hipp.)',
+        'Middle cerebellar peduncle':            'MCP',
+        'Fornix (column and body)':              'Fornix',
+    }
+    roi_scatter(df,
+                xcol='FA_mean',             ycol='MVF_basic_mean',
+                xerr_col='FA_mean_sem',     yerr_col='MVF_basic_mean_sem',
+                xlabel='Mean FA (HCP1065 atlas)', ylabel='MVF MIMM basic  (fraction)',
+                title='Cohort: MIMM MVF vs DTI FA per JHU ROI\n(FA independent of mGRE)',
+                fname='36_cohort_MVF_vs_FA.png',
+                highlight=HL_FA)
+else:
+    print('Skipped: 36_cohort_MVF_vs_FA.png (FA_mean not in cohort CSV — re-run extract_roi_stats.py)')
 
 # ── Figure 37: Cohort MVF vs MWF (T2-GRASE) — dormant ───────────────────────
 # Built in plot_mwf.py. Dormant until GRASE data arrives.

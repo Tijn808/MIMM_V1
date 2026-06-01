@@ -142,6 +142,10 @@ fa_dti   = os.path.join(subj_dir, 'dti',   'FA.nii.gz')
 fa_atlas = os.path.join(subj_dir, 'atlas', 'FA_atlas.nii.gz')
 fa = load(fa_dti if os.path.exists(fa_dti) else fa_atlas)
 
+theta_dti   = os.path.join(subj_dir, 'dti',   'theta.nii.gz')
+theta_atlas = os.path.join(subj_dir, 'atlas', 'theta_atlas.nii.gz')
+theta = load(theta_dti if os.path.exists(theta_dti) else theta_atlas)
+
 maps = {
     'MVF_basic':        load(os.path.join(subj_dir, 'mimm', 'MVF_basic.nii.gz')),
     'MVF_atlas':        load(os.path.join(subj_dir, 'mimm', 'MVF_Atlas.nii.gz')),
@@ -157,7 +161,8 @@ maps = {
     'chi_iron_atlas':   load(os.path.join(subj_dir, 'mimm', 'chi_iron_est_Atlas.nii.gz')),
     'chi_neg_chisep':   load(os.path.join(subj_dir, 'chisep', 'chi_neg.nii.gz')),
     'chi_pos_chisep':   load(os.path.join(subj_dir, 'chisep', 'chi_pos.nii.gz')),
-    'FA':               fa,   # stored so cohort aggregation has per-subject ROI FA means
+    'FA':               fa,     # stored so cohort aggregation has per-subject ROI FA means
+    'theta':            theta,  # fibre angle relative to B0 (degrees); needed for cohort overestimation
 }
 
 # MWF from T2-GRASE (optional — dormant until GRASE data arrives)
