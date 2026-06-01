@@ -21,6 +21,15 @@ df = df.sort_values('MVF_basic_mean', ascending=True).reset_index(drop=True)
 df['chi_neg_abs'] = df['chi_neg_chisep_mean'].abs()   # chi_neg is diamagnetic (negative ppm)
 names = df['ROI_name'].tolist()
 
+# Error bars compare ROI MEANS, so use SEM (uncertainty on the mean), not SD
+# (within-ROI voxel spread). SEM = SD / sqrt(n_voxels). With thousands of voxels
+# per ROI this is far smaller than SD and does not swamp the plot.
+# (Voxels are spatially correlated so this mildly overstates precision, but it is
+# the correct quantity for comparing means.)
+for _c in ['MVF_basic', 'MVF_atlas', 'chi_neg_chisep', 'chi_pos_chisep',
+           'chi_iron_basic', 'chi_myelin_basic']:
+    df[f'{_c}_sem'] = df[f'{_c}_sd'] / np.sqrt(df['n_voxels'])
+
 # Per-ROI FA mean from atlas (needed for fig 29; not stored in roi_stats.csv)
 _fa_path  = os.path.join(subj_dir, 'atlas', 'FA_atlas.nii.gz')
 _lbl_path = os.path.join(subj_dir, 'atlas', 'JHU_labels_subj.nii.gz')
@@ -44,11 +53,11 @@ y  = np.arange(len(df))
 h  = 0.35
 
 bars_b = ax.barh(y + h/2, df['MVF_basic_mean'], h,
-                 xerr=df['MVF_basic_sd'], color='#e05c5c', alpha=0.85,
+                 xerr=df['MVF_basic_sem'], color='#e05c5c', alpha=0.85,
                  error_kw=dict(ecolor='white', lw=0.8, capsize=2),
                  label='Basic (no prior)')
 bars_a = ax.barh(y - h/2, df['MVF_atlas_mean'], h,
-                 xerr=df['MVF_atlas_sd'], color='#5c9ee0', alpha=0.85,
+                 xerr=df['MVF_atlas_sem'], color='#5c9ee0', alpha=0.85,
                  error_kw=dict(ecolor='white', lw=0.8, capsize=2),
                  label='Atlas (HCP1065 prior)')
 
@@ -133,29 +142,37 @@ fig, ax = plt.subplots(figsize=(7, 7), facecolor='#0d0d0d')
 ax.set_facecolor('#0d0d0d')
 
 ax.errorbar(df['MVF_basic_mean'], df['MVF_atlas_mean'],
-            xerr=df['MVF_basic_sd'], yerr=df['MVF_atlas_sd'],
+            xerr=df['MVF_basic_sem'], yerr=df['MVF_atlas_sem'],
             fmt='o', color='#e0a050', markersize=5, alpha=0.8,
-            ecolor='#666666', elinewidth=0.7, capsize=2)
+            ecolor='#888888', elinewidth=0.7, capsize=2)
 
 # Identity line
 lim = (0, 0.45)
 ax.plot(lim, lim, '--', color='#555555', linewidth=1, label='y = x')
 
-# Label a few key tracts
-highlight = ['Splenium of corpus callosum', 'Genu of corpus callosum',
-             'Body of corpus callosum', 'Posterior limb of internal capsule R',
-             'Corticospinal tract R', 'Cingulum (cingulate gyrus) R']
+# Label key tracts with custom offsets + leader lines to avoid collisions in
+# the dense 0.18-0.25 cluster. (dx, dy in points, ha alignment.)
+label_offsets = {
+    'Posterior limb of internal capsule R': (8,   0, 'left'),
+    'Splenium of corpus callosum':          (8,  -2, 'left'),
+    'Corticospinal tract R':                (12, 14, 'left'),
+    'Genu of corpus callosum':              (16, -16, 'left'),
+    'Body of corpus callosum':              (20, -30, 'left'),
+    'Cingulum (cingulate gyrus) R':         (-12, 16, 'right'),
+}
 for _, row in df.iterrows():
-    if row['ROI_name'] in highlight:
-        ax.annotate(row['ROI_name'].replace(' R', '').replace(' L', ''),
-                    (row['MVF_basic_mean'], row['MVF_atlas_mean']),
-                    textcoords='offset points', xytext=(6, 2),
-                    fontsize=7, color='white', alpha=0.9)
+    if row['ROI_name'] in label_offsets:
+        dx, dy, ha = label_offsets[row['ROI_name']]
+        short = row['ROI_name'].replace(' R', '').replace(' L', '')
+        ax.annotate(short, (row['MVF_basic_mean'], row['MVF_atlas_mean']),
+                    textcoords='offset points', xytext=(dx, dy), ha=ha,
+                    fontsize=7, color='white', alpha=0.9,
+                    arrowprops=dict(arrowstyle='-', color='#888888', lw=0.5))
 
 ax.set_xlim(lim); ax.set_ylim(lim)
 ax.set_xlabel('MVF — Basic (no prior)', color='white', fontsize=11)
 ax.set_ylabel('MVF — Atlas (HCP1065 prior)', color='white', fontsize=11)
-ax.set_title('MVF: Basic vs Atlas per JHU ROI\n(error bars = ±1 SD within ROI)',
+ax.set_title('MVF: Basic vs Atlas per JHU ROI\n(error bars = ±1 SEM)',
              color='white', fontsize=13, fontweight='bold')
 ax.tick_params(colors='white')
 for spine in ax.spines.values():
@@ -176,13 +193,17 @@ if os.path.exists(tracts_csv):
     names_t = dft['ROI_name'].tolist()
     y_t = np.arange(len(dft))
 
+    # SEM for error bars (see note at df load) — uncertainty on the ROI mean
+    dft['MVF_basic_sem'] = dft['MVF_basic_sd'] / np.sqrt(dft['n_voxels'])
+    dft['MVF_atlas_sem'] = dft['MVF_atlas_sd'] / np.sqrt(dft['n_voxels'])
+
     fig, ax = plt.subplots(figsize=(10, 7), facecolor='#0d0d0d')
     ax.set_facecolor('#0d0d0d')
     ax.barh(y_t + 0.2, dft['MVF_basic_mean'], 0.4,
-            xerr=dft['MVF_basic_sd'], color='#e05c5c', alpha=0.85,
+            xerr=dft['MVF_basic_sem'], color='#e05c5c', alpha=0.85,
             error_kw=dict(ecolor='white', lw=0.8, capsize=2), label='Basic')
     ax.barh(y_t - 0.2, dft['MVF_atlas_mean'], 0.4,
-            xerr=dft['MVF_atlas_sd'], color='#5c9ee0', alpha=0.85,
+            xerr=dft['MVF_atlas_sem'], color='#5c9ee0', alpha=0.85,
             error_kw=dict(ecolor='white', lw=0.8, capsize=2), label='Atlas')
     ax.set_yticks(y_t)
     ax.set_yticklabels(names_t, color='white', fontsize=8)
@@ -273,7 +294,7 @@ for family, (indices, color) in TRACT_FAMILIES.items():
     if sub.empty:
         continue
     ax.errorbar(sub['chi_neg_abs'], sub['MVF_basic_mean'],
-                xerr=sub['chi_neg_chisep_sd'], yerr=sub['MVF_basic_sd'],
+                xerr=sub['chi_neg_chisep_sem'], yerr=sub['MVF_basic_sem'],
                 fmt='o', color=color, markersize=6, alpha=0.85,
                 ecolor='#555555', elinewidth=0.6, capsize=2, label=family, zorder=3)
 
@@ -329,7 +350,7 @@ for family, (indices, color) in TRACT_FAMILIES.items():
     if sub.empty:
         continue
     ax.errorbar(sub['chi_pos_chisep_mean'], sub['chi_iron_basic_mean'],
-                xerr=sub['chi_pos_chisep_sd'], yerr=sub['chi_iron_basic_sd'],
+                xerr=sub['chi_pos_chisep_sem'], yerr=sub['chi_iron_basic_sem'],
                 fmt='o', color=color, markersize=6, alpha=0.85,
                 ecolor='#555555', elinewidth=0.6, capsize=2, label=family, zorder=3)
 
@@ -388,7 +409,7 @@ for family, (indices, color) in TRACT_FAMILIES.items():
     if sub.empty:
         continue
     ax.errorbar(sub['chi_myelin_basic_mean'], sub['chi_neg_abs'],
-                xerr=sub['chi_myelin_basic_sd'], yerr=sub['chi_neg_chisep_sd'],
+                xerr=sub['chi_myelin_basic_sem'], yerr=sub['chi_neg_chisep_sem'],
                 fmt='o', color=color, markersize=6, alpha=0.85,
                 ecolor='#555555', elinewidth=0.6, capsize=2, label=family, zorder=3)
 
@@ -451,7 +472,7 @@ if df['fa_mean'].notna().sum() > 3:
         if sub.empty:
             continue
         ax.errorbar(sub['fa_mean'], sub['MVF_basic_mean'],
-                    yerr=sub['MVF_basic_sd'],
+                    yerr=sub['MVF_basic_sem'],
                     fmt='o', color=color, markersize=6, alpha=0.85,
                     ecolor='#555555', elinewidth=0.6, capsize=2, label=family, zorder=3)
 
