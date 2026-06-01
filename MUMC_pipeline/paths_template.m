@@ -19,7 +19,9 @@ atlas_dir  = fullfile(output_dir, 'atlas');
 fig_dir    = fullfile(output_dir, 'figures');
 analysis_d = fullfile(output_dir, 'analysis');
 sep_dir    = fullfile(output_dir, 'source_separation');
+grase_dir  = fullfile(output_dir, 'grase');   % T2-GRASE MWF (registered to ME-GRE)
+dti_dir    = fullfile(output_dir, 'dti');
 
-for d = {qsm_dir, mimm_dir, chisep_out, atlas_dir, fig_dir, analysis_d, sep_dir}
+for d = {qsm_dir, mimm_dir, chisep_out, atlas_dir, fig_dir, analysis_d, sep_dir, grase_dir, dti_dir}
     if ~exist(d{1}, 'dir'); mkdir(d{1}); end
 end

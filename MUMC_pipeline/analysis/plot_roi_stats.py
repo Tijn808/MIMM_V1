@@ -30,18 +30,23 @@ for _c in ['MVF_basic', 'MVF_atlas', 'chi_neg_chisep', 'chi_pos_chisep',
            'chi_iron_basic', 'chi_myelin_basic']:
     df[f'{_c}_sem'] = df[f'{_c}_sd'] / np.sqrt(df['n_voxels'])
 
-# Per-ROI FA mean from atlas (needed for fig 29; not stored in roi_stats.csv)
-_fa_path  = os.path.join(subj_dir, 'atlas', 'FA_atlas.nii.gz')
-_lbl_path = os.path.join(subj_dir, 'atlas', 'JHU_labels_subj.nii.gz')
-if os.path.exists(_fa_path) and os.path.exists(_lbl_path):
-    _fa_vol  = np.array(nib.load(_fa_path).dataobj).astype(np.float32)
-    _lbl_vol = np.array(nib.load(_lbl_path).dataobj).astype(int)
-    df['fa_mean'] = [
-        float(_fa_vol[_lbl_vol == idx].mean()) if (_lbl_vol == idx).any() else np.nan
-        for idx in df['ROI_index']
-    ]
+# FA per-ROI mean is now stored in roi_stats.csv as 'FA_mean' (added to
+# extract_roi_stats.py maps dict). Fall back to NIfTI computation for
+# backwards compatibility with CSVs generated before this change.
+if 'FA_mean' in df.columns:
+    df['fa_mean'] = df['FA_mean']
 else:
-    df['fa_mean'] = np.nan
+    _fa_path  = os.path.join(subj_dir, 'atlas', 'FA_atlas.nii.gz')
+    _lbl_path = os.path.join(subj_dir, 'atlas', 'JHU_labels_subj.nii.gz')
+    if os.path.exists(_fa_path) and os.path.exists(_lbl_path):
+        _fa_vol  = np.array(nib.load(_fa_path).dataobj).astype(np.float32)
+        _lbl_vol = np.array(nib.load(_lbl_path).dataobj).astype(int)
+        df['fa_mean'] = [
+            float(_fa_vol[_lbl_vol == idx].mean()) if (_lbl_vol == idx).any() else np.nan
+            for idx in df['ROI_index']
+        ]
+    else:
+        df['fa_mean'] = np.nan
 
 plt.rcParams.update({'font.family': 'sans-serif', 'font.size': 9})
 

@@ -19,6 +19,8 @@ CHISEP_DIR   = os.path.join(OUTPUT_DIR, 'chisep')
 ATLAS_DIR    = os.path.join(OUTPUT_DIR, 'atlas')
 FIG_DIR      = os.path.join(OUTPUT_DIR, 'figures')
 ANALYSIS_DIR = os.path.join(OUTPUT_DIR, 'analysis')
+GRASE_DIR    = os.path.join(OUTPUT_DIR, 'grase')   # T2-GRASE MWF registered to ME-GRE
+DTI_DIR      = os.path.join(OUTPUT_DIR, 'dti')
 
-for d in [QSM_DIR, MIMM_DIR, CHISEP_DIR, ATLAS_DIR, FIG_DIR, ANALYSIS_DIR]:
+for d in [QSM_DIR, MIMM_DIR, CHISEP_DIR, ATLAS_DIR, FIG_DIR, ANALYSIS_DIR, GRASE_DIR, DTI_DIR]:
     os.makedirs(d, exist_ok=True)

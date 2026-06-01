@@ -157,7 +157,14 @@ maps = {
     'chi_iron_atlas':   load(os.path.join(subj_dir, 'mimm', 'chi_iron_est_Atlas.nii.gz')),
     'chi_neg_chisep':   load(os.path.join(subj_dir, 'chisep', 'chi_neg.nii.gz')),
     'chi_pos_chisep':   load(os.path.join(subj_dir, 'chisep', 'chi_pos.nii.gz')),
+    'FA':               fa,   # stored so cohort aggregation has per-subject ROI FA means
 }
+
+# MWF from T2-GRASE (optional — dormant until GRASE data arrives)
+mwf_path = os.path.join(subj_dir, 'grase', 'MWF.nii.gz')
+if os.path.exists(mwf_path):
+    maps['MWF'] = load(mwf_path)
+    print('T2-GRASE MWF found — including in ROI stats.')
 
 # -------------------------------------------------------------------------
 # Main loop: per-ROI statistics

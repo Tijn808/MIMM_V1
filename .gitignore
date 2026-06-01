@@ -14,6 +14,8 @@ Example_Results/*.mat
 # Machine-specific config files (copy from *_template.m / *_template.py and edit)
 MUMC_pipeline/paths.m
 MUMC_pipeline/analysis/paths.py
+MUMC_pipeline/analysis/cohort_paths.py
+MUMC_pipeline/lambda_chi_cohort.txt
 
 # External toolboxes (large, not project code)
 sepia/
