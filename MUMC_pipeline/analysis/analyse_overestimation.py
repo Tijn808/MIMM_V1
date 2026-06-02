@@ -7,9 +7,10 @@ Tests the core physics hypothesis:
   decay with myelin content.
 
 Produces:
-  23_overestimation_ranked.png   -- all ROIs ranked by overestimation
-  24_overestimation_vs_theta.png -- scatter: mean fibre angle vs overestimation
-  25_overestimation_vs_FA.png    -- scatter: mean FA vs overestimation
+  23_overestimation_ranked.png        -- all ROIs ranked by overestimation
+  24_overestimation_vs_theta.png      -- scatter: mean fibre angle vs overestimation
+  25_overestimation_vs_FA.png         -- scatter: mean FA vs overestimation
+  45_overestimation_spatial_JHU.png   -- spatial map with JHU boundaries overlaid
 """
 
 import numpy as np
@@ -178,6 +179,133 @@ plt.savefig(os.path.join(out_dir, '25_overestimation_vs_FA.png'),
             dpi=150, bbox_inches='tight', facecolor='#0d0d0d')
 plt.close()
 print('Saved: 25_overestimation_vs_FA.png')
+
+# ── Figure 45: Spatial overestimation with JHU atlas overlay ─────────────────
+# Two-row × three-column figure.
+# Row 1: voxel-wise MVF difference (basic − atlas) — continuous spatial map.
+# Row 2: ROI-mean overestimation projected back to each voxel — shows the
+#         structured, atlas-level result in anatomical context.
+# Both rows share the same diverging colormap and scale. JHU ROI boundaries
+# are overlaid as thin white contour lines. Top-5 overestimated ROIs are
+# labeled by name on the axial slice of row 2.
+
+def _load(path):
+    return np.array(nib.load(path).dataobj).astype(np.float32)
+
+mvf_b = _load(os.path.join(subj_dir, 'mimm', 'MVF_basic.nii.gz'))
+mvf_a = _load(os.path.join(subj_dir, 'mimm', 'MVF_Atlas.nii.gz'))
+mag   = _load(os.path.join(subj_dir, 'qsm',  'mag_e1.nii.gz'))
+brain = _load(os.path.join(subj_dir, 'qsm',  'brain_mask.nii.gz')) > 0
+
+mvf_diff = mvf_b - mvf_a
+mvf_diff[~brain] = 0.0
+
+# Build ROI-mean overestimation volume: each voxel gets its ROI's mean overest.
+overest_vol = np.full(mvf_diff.shape, np.nan, dtype=np.float32)
+for _, row in df.iterrows():
+    overest_vol[labels == row['ROI_index']] = row['overest_abs']
+overest_vol[~brain] = np.nan   # transparent outside brain
+
+# Symmetric colormap range: clip to 99th percentile of absolute values
+_vals = mvf_diff[brain]
+_clim = float(np.percentile(np.abs(_vals), 99))
+_clim = max(_clim, 0.01)   # avoid zero range
+
+# Slices centred on brain-mask centroid
+_coords      = np.argwhere(brain)
+cx, cy, cz   = _coords.mean(axis=0).astype(int)
+view_labels  = ['Axial', 'Coronal', 'Sagittal']
+
+def _s(vol):
+    """Return (axial, coronal, sagittal) slices, rotated for display."""
+    return (np.rot90(vol[:, :, cz]),
+            np.rot90(vol[:, cy, :]),
+            np.rot90(vol[cx, :, :]))
+
+lbl_s     = _s(labels.astype(float))
+diff_s    = _s(mvf_diff)
+overest_s = _s(overest_vol)
+mag_s     = _s(mag)
+
+# Unique label levels for contour boundaries
+_lev = np.unique(labels[brain])
+_lev = _lev[_lev > 0] - 0.5   # boundary between each label and next
+
+fig, axes = plt.subplots(2, 3, figsize=(16, 10), facecolor='black')
+fig.suptitle('MVF Overestimation in Brain Space — MIMM Basic vs Atlas\n'
+             'with JHU DTI-81 ROI Boundaries',
+             color='white', fontsize=14, fontweight='bold', y=1.01)
+
+row_titles = ['Voxel-wise MVF diff  (Basic − Atlas)',
+              'ROI-mean overestimation  (colour = ROI mean Basic − Atlas)']
+cmap       = 'RdBu_r'   # red = basic overestimates, blue = underestimates
+
+for row, (slices, row_title) in enumerate(zip([diff_s, overest_s], row_titles)):
+    for col in range(3):
+        ax = axes[row, col]
+        ax.set_facecolor('black')
+
+        # Anatomy background
+        bg = mag_s[col]
+        bg_norm = (bg - bg.min()) / (bg.max() - bg.min() + 1e-8)
+        ax.imshow(bg_norm, cmap='gray', aspect='auto', interpolation='nearest')
+
+        # Overestimation overlay (masked where nan/zero-brain)
+        sl = slices[col]
+        masked = np.ma.masked_invalid(sl) if row == 1 else np.ma.masked_where(~np.isfinite(sl), sl)
+        ax.imshow(masked, cmap=cmap, vmin=-_clim, vmax=_clim,
+                  aspect='auto', interpolation='nearest', alpha=0.80)
+
+        # JHU ROI boundaries
+        if len(_lev) > 0:
+            ax.contour(lbl_s[col], levels=_lev,
+                       colors='white', linewidths=0.35, alpha=0.55)
+
+        if row == 0:
+            ax.set_title(view_labels[col], color='white', fontsize=11)
+        ax.axis('off')
+
+    axes[row, 0].set_ylabel(row_title, color='white', fontsize=10,
+                            rotation=90, labelpad=8)
+
+# Label top-5 overestimated ROIs on axial slice of row 2 (most informative view)
+top5 = df.nlargest(5, 'overest_abs')
+ax_lbl = axes[1, 0]   # axial slice of overestimation row
+for _, row_r in top5.iterrows():
+    roi_mask_ax = np.rot90(labels[:, :, cz] == row_r['ROI_index'])
+    if roi_mask_ax.sum() == 0:
+        continue
+    ys, xs = np.where(roi_mask_ax)
+    xc, yc = xs.mean(), ys.mean()
+    short = (row_r['ROI_name']
+             .replace('Posterior thalamic radiation', 'Post. thal. rad.')
+             .replace('Posterior limb of internal capsule', 'Post. IC')
+             .replace('Retrolenticular internal capsule', 'Retrolent. IC')
+             .replace('Splenium of corpus callosum', 'Splenium CC')
+             .replace('Body of corpus callosum', 'Body CC')
+             .replace(' R', '').replace(' L', ''))
+    ax_lbl.annotate(f'{short}\n{row_r["overest_rel"]:+.0f}%',
+                    xy=(xc, yc), xytext=(xc + 12, yc - 12),
+                    fontsize=6.5, color='white', ha='left',
+                    path_effects=[pe.withStroke(linewidth=2, foreground='black')],
+                    arrowprops=dict(arrowstyle='->', color='white', lw=0.8))
+
+# Shared colorbar
+sm = plt.cm.ScalarMappable(cmap=cmap,
+                           norm=plt.Normalize(vmin=-_clim, vmax=_clim))
+sm.set_array([])
+cbar = fig.colorbar(sm, ax=axes, orientation='vertical',
+                    fraction=0.015, pad=0.02, shrink=0.85)
+cbar.set_label('MVF_basic − MVF_atlas  (fraction)', color='white', fontsize=10)
+cbar.ax.yaxis.set_tick_params(color='white')
+plt.setp(cbar.ax.yaxis.get_ticklabels(), color='white')
+cbar.outline.set_edgecolor('white')
+
+plt.tight_layout()
+plt.savefig(os.path.join(out_dir, '45_overestimation_spatial_JHU.png'),
+            dpi=150, bbox_inches='tight', facecolor='black', edgecolor='none')
+plt.close()
+print('Saved: 45_overestimation_spatial_JHU.png')
 
 # ── Terminal summary ──────────────────────────────────────────────────────────
 print(f'\nCorrelation: overestimation vs theta  r={r:.3f}  p={p:.4f}')
