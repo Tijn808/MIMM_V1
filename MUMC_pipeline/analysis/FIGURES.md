@@ -98,10 +98,10 @@ To unlock and revert the whole cohort to the default, delete `lambda_chi_cohort.
 
 ---
 
-## Figure 18 — ROI Bar Chart: MVF Basic vs Atlas (JHU DTI-81)
-**File:** `18_ROI_MVF_basic_vs_atlas.png` | **Script:** `plot_roi_stats.py` | **Data:** 48 JHU DTI-81 ROIs, sorted by MVF ascending
+## Figure 18 — ROI Bar Chart: MVF Basic vs Atlas (dual atlas)
+**File:** `18_ROI_MVF_dual_atlas.png` | **Script:** `plot_roi_stats.py` | **Data:** 48 JHU DTI-81 ROIs (left) + 20 tractography ROIs (right, if CSV exists)
 
-Horizontal bar chart of mean MVF ± SEM per ROI, basic (red) vs atlas (blue). Error bars are the standard error of the ROI mean (SD/√n_voxels), the correct uncertainty when comparing means — not the within-ROI voxel spread (SD), which was used originally and swamped the plot.
+Two-panel bar chart of mean MVF ± SEM per ROI, basic (red) vs atlas (blue). Left panel: JHU DTI-81 (48 ROIs). Right panel: JHU tractography thr25 (20 ROIs). Merges the previously separate figures 18 and 21 into a single figure that directly invites atlas comparison. Error bars are the standard error of the ROI mean (SD/√n_voxels).
 
 **Observations:**
 - **Highest MVF:** Posterior limb of internal capsule (L/R, ~0.38–0.40), splenium of corpus callosum (~0.35), posterior thalamic radiation (~0.30). These are densely myelinated projection fibres.
@@ -149,18 +149,9 @@ The identity-line deviation pattern directly validates the physics hypothesis: o
 
 ---
 
-## Figure 21 — ROI Bar Chart: MVF Basic vs Atlas (JHU Tractography thr25)
-**File:** `21_ROI_tracts_MVF.png` | **Script:** `plot_roi_stats.py` | **Data:** 20 JHU tractography ROIs, sorted by FA-weighted MVF ascending
+## Figure 21 — Merged into Figure 18
 
-**Observations:**
-- **Forceps major** (callosal splenium region) has the highest MVF (~0.38 basic, ~0.28 atlas) — the biggest absolute discrepancy of any tractography ROI.
-- **Corticospinal tracts** are high (~0.28–0.30 atlas), consistent with DTI-81 results.
-- **Cingulum hippocampus and SLF temporal** at the bottom (~0.05–0.15), consistent with limbic/association fibre findings.
-- **Basic overestimates atlas consistently across all 20 tracts** — no tractography ROI shows the reverse.
-- Error bars are ±SEM (SD/√n_voxels). Because tractography ROIs are large (high n_voxels), the SEM is small and the means are well determined — the within-ROI voxel spread (SD) is large but is not the relevant uncertainty for comparing means.
-
-**Interpretation:**
-The tractography atlas gives the same overall ranking as DTI-81. The forceps major overestimation at +37% (relative to atlas) mirrors the DTI-81 splenium finding, confirming this is a robust result not dependent on atlas choice.
+The tractography bar chart (previously figure 21) is now the right panel of figure 18 (`18_ROI_MVF_dual_atlas.png`). Key observations from when it existed standalone: forceps major highest MVF (~0.38 basic, ~0.28 atlas, +37% overestimation); basic overestimates atlas consistently across all 20 tracts; results mirror the DTI-81 splenium finding.
 
 ---
 

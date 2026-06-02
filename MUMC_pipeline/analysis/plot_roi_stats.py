@@ -50,42 +50,60 @@ else:
 
 plt.rcParams.update({'font.family': 'sans-serif', 'font.size': 9})
 
-# ── Figure 1: MVF Basic vs Atlas — horizontal bar chart ──────────────────────
-fig, ax = plt.subplots(figsize=(10, 14), facecolor='#0d0d0d')
-ax.set_facecolor('#0d0d0d')
+# ── Figure 18: MVF Basic vs Atlas — both atlases side by side ────────────────
+# DTI-81 (48 ROIs) in the left panel; tractography thr25 (20 ROIs) in the right
+# panel if that CSV exists. Merges the previously separate figures 18 and 21.
+_tracts_csv = os.path.join(subj_dir, 'analysis', 'roi_stats_tracts.csv')
+_tracts_ok  = os.path.exists(_tracts_csv)
 
-y  = np.arange(len(df))
-h  = 0.35
+if _tracts_ok:
+    _dft = pd.read_csv(_tracts_csv).sort_values('MVF_basic_fa_weighted_mean', ascending=True)
+    _dft['MVF_basic_sem'] = _dft['MVF_basic_sd'] / np.sqrt(_dft['n_voxels'])
+    _dft['MVF_atlas_sem'] = _dft['MVF_atlas_sd'] / np.sqrt(_dft['n_voxels'])
+    fig, axes18 = plt.subplots(1, 2, figsize=(20, 14), facecolor='#0d0d0d')
+else:
+    fig, _ax18  = plt.subplots(1, 1, figsize=(10, 14), facecolor='#0d0d0d')
+    axes18 = [_ax18]
 
-bars_b = ax.barh(y + h/2, df['MVF_basic_mean'], h,
-                 xerr=df['MVF_basic_sem'], color='#e05c5c', alpha=0.85,
-                 error_kw=dict(ecolor='white', lw=0.8, capsize=2),
-                 label='Basic (no prior)')
-bars_a = ax.barh(y - h/2, df['MVF_atlas_mean'], h,
-                 xerr=df['MVF_atlas_sem'], color='#5c9ee0', alpha=0.85,
-                 error_kw=dict(ecolor='white', lw=0.8, capsize=2),
-                 label='Atlas (HCP1065 prior)')
+def _bar_panel(ax, y_vals, means_b, sems_b, means_a, sems_a, ylabels, subtitle):
+    ax.set_facecolor('#0d0d0d')
+    h = 0.35
+    ax.barh(y_vals + h/2, means_b, h, xerr=sems_b, color='#e05c5c', alpha=0.85,
+            error_kw=dict(ecolor='white', lw=0.8, capsize=2), label='Basic (no prior)')
+    ax.barh(y_vals - h/2, means_a, h, xerr=sems_a, color='#5c9ee0', alpha=0.85,
+            error_kw=dict(ecolor='white', lw=0.8, capsize=2), label='Atlas (HCP1065 prior)')
+    ax.set_yticks(y_vals)
+    ax.set_yticklabels(ylabels, color='white', fontsize=7.5)
+    ax.set_xlabel('MVF (fraction)', color='white', fontsize=11)
+    ax.set_title(subtitle, color='white', fontsize=12, fontweight='bold')
+    ax.tick_params(colors='white'); ax.xaxis.set_tick_params(color='white')
+    for s in ax.spines.values(): s.set_edgecolor('#444444')
+    ax.set_xlim(0, 0.55); ax.axvline(0, color='#444444', lw=0.8)
+    ax.grid(axis='x', color='#333333', lw=0.5, ls='--')
+    ax.legend(fontsize=10, facecolor='#1a1a1a', edgecolor='#555555',
+              labelcolor='white', loc='lower right')
 
-ax.set_yticks(y)
-ax.set_yticklabels(names, color='white', fontsize=7.5)
-ax.set_xlabel('MVF (fraction)', color='white', fontsize=11)
-ax.set_title('Myelin Volume Fraction per JHU White Matter ROI\nBasic vs Atlas MIMM',
-             color='white', fontsize=13, fontweight='bold', pad=12)
-ax.tick_params(colors='white')
-ax.xaxis.set_tick_params(color='white')
-for spine in ax.spines.values():
-    spine.set_edgecolor('#444444')
-ax.set_xlim(0, 0.55)
-ax.axvline(0, color='#444444', linewidth=0.8)
-ax.grid(axis='x', color='#333333', linewidth=0.5, linestyle='--')
-legend = ax.legend(fontsize=10, facecolor='#1a1a1a', edgecolor='#555555',
-                   labelcolor='white', loc='lower right')
+y = np.arange(len(df))
+_bar_panel(axes18[0], y,
+           df['MVF_basic_mean'], df['MVF_basic_sem'],
+           df['MVF_atlas_mean'], df['MVF_atlas_sem'],
+           names, 'JHU DTI-81  (48 ROIs)')
 
+if _tracts_ok:
+    y_t = np.arange(len(_dft))
+    _bar_panel(axes18[1], y_t,
+               _dft['MVF_basic_mean'], _dft['MVF_basic_sem'],
+               _dft['MVF_atlas_mean'], _dft['MVF_atlas_sem'],
+               _dft['ROI_name'].tolist(), 'JHU Tractography thr25  (20 ROIs)')
+
+fig.suptitle('Myelin Volume Fraction per JHU WM ROI — Basic vs Atlas MIMM\n'
+             '(error bars = ±1 SEM)',
+             color='white', fontsize=13, fontweight='bold', y=1.01)
 plt.tight_layout()
-plt.savefig(os.path.join(out_dir, '18_ROI_MVF_basic_vs_atlas.png'),
+plt.savefig(os.path.join(out_dir, '18_ROI_MVF_dual_atlas.png'),
             dpi=150, bbox_inches='tight', facecolor='#0d0d0d')
 plt.close()
-print('Saved: 18_ROI_MVF_basic_vs_atlas.png')
+print('Saved: 18_ROI_MVF_dual_atlas.png')
 
 # ── Figure 2: Heatmap — all ROIs × key parameters ───────────────────────────
 params = {
@@ -191,41 +209,10 @@ plt.savefig(os.path.join(out_dir, '20_ROI_MVF_scatter.png'),
 plt.close()
 print('Saved: 20_ROI_MVF_scatter.png')
 
-# ── Figure 21: Tractography atlas — MVF Basic vs Atlas bar chart ─────────────
-tracts_csv = os.path.join(subj_dir, 'analysis', 'roi_stats_tracts.csv')
-if os.path.exists(tracts_csv):
-    dft = pd.read_csv(tracts_csv).sort_values('MVF_basic_fa_weighted_mean', ascending=True)
-    names_t = dft['ROI_name'].tolist()
-    y_t = np.arange(len(dft))
-
-    # SEM for error bars (see note at df load) — uncertainty on the ROI mean
-    dft['MVF_basic_sem'] = dft['MVF_basic_sd'] / np.sqrt(dft['n_voxels'])
-    dft['MVF_atlas_sem'] = dft['MVF_atlas_sd'] / np.sqrt(dft['n_voxels'])
-
-    fig, ax = plt.subplots(figsize=(10, 7), facecolor='#0d0d0d')
-    ax.set_facecolor('#0d0d0d')
-    ax.barh(y_t + 0.2, dft['MVF_basic_mean'], 0.4,
-            xerr=dft['MVF_basic_sem'], color='#e05c5c', alpha=0.85,
-            error_kw=dict(ecolor='white', lw=0.8, capsize=2), label='Basic')
-    ax.barh(y_t - 0.2, dft['MVF_atlas_mean'], 0.4,
-            xerr=dft['MVF_atlas_sem'], color='#5c9ee0', alpha=0.85,
-            error_kw=dict(ecolor='white', lw=0.8, capsize=2), label='Atlas')
-    ax.set_yticks(y_t)
-    ax.set_yticklabels(names_t, color='white', fontsize=8)
-    ax.set_xlabel('MVF (fraction)', color='white', fontsize=11)
-    ax.set_title('MVF per JHU Tractography ROI (thr25)\nBasic vs Atlas MIMM',
-                 color='white', fontsize=13, fontweight='bold', pad=12)
-    ax.tick_params(colors='white')
-    for spine in ax.spines.values(): spine.set_edgecolor('#444444')
-    ax.set_xlim(0, 0.55)
-    ax.grid(axis='x', color='#333333', linewidth=0.5, linestyle='--')
-    ax.legend(fontsize=10, facecolor='#1a1a1a', edgecolor='#555555',
-              labelcolor='white', loc='lower right')
-    plt.tight_layout()
-    plt.savefig(os.path.join(out_dir, '21_ROI_tracts_MVF.png'),
-                dpi=150, bbox_inches='tight', facecolor='#0d0d0d')
-    plt.close()
-    print('Saved: 21_ROI_tracts_MVF.png')
+# ── Figure 22: Atlas comparison — DTI-81 vs Tractography CV + r ──────────────
+# (figure 21 merged into figure 18 above)
+if _tracts_ok:
+    dft = _dft   # reuse what figure 18 already loaded
 
     # ── Figure 22: Atlas comparison — DTI-81 vs Tractography CV + r ──────────
     fig, axes = plt.subplots(1, 2, figsize=(12, 5), facecolor='#0d0d0d')
