@@ -20,11 +20,13 @@
 
 %% --- Paths (loaded from MUMC_pipeline/paths.m) ---
 
-paths_file = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'paths.m');
-if ~exist(paths_file, 'file')
-    error('paths.m not found. Copy MUMC_pipeline/paths_template.m to paths.m and fill in your paths.');
+if ~exist('mimm_root', 'var')
+    paths_file = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'paths.m');
+    if ~exist(paths_file, 'file')
+        error('paths.m not found. Copy MUMC_pipeline/paths_template.m to paths.m and fill in your paths.');
+    end
+    run(paths_file);
 end
-run(paths_file);
 data_dir  = input_dir;
 subj_dir  = input_dir;
 prefix    = '501';   % subject/series number prefix — adapt per subject
@@ -34,8 +36,11 @@ TE        = zeros(1, n_echoes);   % filled from JSON below
 
 %% --- Load and stack echoes ---
 
-mag_4d = [];
-pha_4d = [];
+% Preallocate using echo-1 header so the analyser does not warn about growing arrays.
+info_e1 = niftiinfo(fullfile(data_dir, sprintf('%s-ME_GRE_e1.nii.gz', prefix)));
+mag_4d  = zeros([info_e1.ImageSize, n_echoes]);
+pha_4d  = zeros([info_e1.ImageSize, n_echoes]);
+clear info_e1
 
 for e = 1:n_echoes
     mag_file      = fullfile(data_dir, sprintf('%s-ME_GRE_e%d.nii.gz',       prefix, e));
@@ -57,12 +62,6 @@ for e = 1:n_echoes
 
     % Phase: RWV scaling gives milli-radians → divide by 1000 for radians
     pha_vol = (pha_vol * pha_json.PhilipsRWVSlope + pha_json.PhilipsRWVIntercept) / 1000;
-
-    if isempty(mag_4d)
-        sz     = size(mag_vol);
-        mag_4d = zeros([sz, n_echoes]);
-        pha_4d = zeros([sz, n_echoes]);
-    end
 
     mag_4d(:,:,:,e) = mag_vol;
     pha_4d(:,:,:,e) = pha_vol;

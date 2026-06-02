@@ -20,10 +20,15 @@ import pandas as pd
 from scipy import stats
 import os
 
-try:
-    from paths import OUTPUT_DIR as subj_dir, ANALYSIS_DIR as out_dir
-except ImportError:
-    raise SystemExit('Copy MUMC_pipeline/analysis/paths_template.py to paths.py and fill in your paths.')
+_od = os.environ.get('MIMM_OUTPUT_DIR')
+if _od:
+    subj_dir = _od
+    out_dir  = os.path.join(_od, 'analysis')
+else:
+    try:
+        from paths import OUTPUT_DIR as subj_dir, ANALYSIS_DIR as out_dir
+    except ImportError:
+        raise SystemExit('Copy MUMC_pipeline/analysis/paths_template.py to paths.py and fill in your paths.')
 os.makedirs(out_dir, exist_ok=True)
 
 # --- JHU label names (index 1–50) ---

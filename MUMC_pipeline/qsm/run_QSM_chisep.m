@@ -14,11 +14,13 @@
 
 %% --- Paths (loaded from MUMC_pipeline/paths.m) ---
 
-paths_file = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'paths.m');
-if ~exist(paths_file, 'file')
-    error('paths.m not found. Copy MUMC_pipeline/paths_template.m to paths.m and fill in your paths.');
+if ~exist('mimm_root', 'var')   % skip if called from run_subject.m with vars pre-set
+    paths_file = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'paths.m');
+    if ~exist(paths_file, 'file')
+        error('paths.m not found. Copy MUMC_pipeline/paths_template.m to paths.m and fill in your paths.');
+    end
+    run(paths_file);
 end
-run(paths_file);
 subj_dir   = input_dir;
 output_dir = qsm_dir;
 

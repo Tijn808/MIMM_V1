@@ -21,10 +21,16 @@ import matplotlib.patheffects as pe
 from scipy import stats
 import os
 
-try:
-    from paths import OUTPUT_DIR as subj_dir, FIG_DIR as out_dir, ANALYSIS_DIR
-except ImportError:
-    raise SystemExit('Copy MUMC_pipeline/analysis/paths_template.py to paths.py and fill in your paths.')
+_od = os.environ.get('MIMM_OUTPUT_DIR')
+if _od:
+    subj_dir     = _od
+    out_dir      = os.path.join(_od, 'figures')
+    ANALYSIS_DIR = os.path.join(_od, 'analysis')
+else:
+    try:
+        from paths import OUTPUT_DIR as subj_dir, FIG_DIR as out_dir, ANALYSIS_DIR
+    except ImportError:
+        raise SystemExit('Copy MUMC_pipeline/analysis/paths_template.py to paths.py and fill in your paths.')
 os.makedirs(out_dir, exist_ok=True)
 
 # ── Load ROI stats and compute overestimation ─────────────────────────────────
