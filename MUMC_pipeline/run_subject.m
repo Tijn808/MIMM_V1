@@ -1,34 +1,45 @@
-function run_subject(subj_dir_arg, mimm_root_arg, chisep_dir_arg, steps_arg)
+function run_subject(subj_dir_arg, mimm_root_arg, chisep_dir_arg, steps_arg, prefix_arg)
 % Run the MATLAB pipeline steps for one subject without needing paths.m.
 %
 % Called by run_cohort.sh for each subject. Sets all workspace variables
 % that paths.m would set, then runs each pipeline script. Scripts detect
 % the pre-set variables and skip their own paths.m loading (mimm_root guard).
 %
-% Usage (from MATLAB command line or -batch):
-%   run_subject('/path/to/cohort/sub-01', '/path/to/MIMM', '/path/to/chisep')
-%   run_subject('/path/to/sub-01', '/path/to/MIMM', '/path/to/chisep', ...
-%               {'prepare_mgre','qsm','chisep','mimm'})
+% Usage:
+%   run_subject(subj_dir, mimm_root, chisep_dir)
+%   run_subject(subj_dir, mimm_root, chisep_dir, {'prepare_mgre','qsm'})
+%   run_subject(subj_dir, mimm_root, chisep_dir, {'prepare_mgre','qsm'}, '501')
 %
-% steps_arg (optional cell array, default = all):
-%   'prepare_mgre'  — prepare_mgre.m   (requires raw NIfTIs in subj_dir)
-%   'qsm'           — run_QSM_chisep.m
-%   'chisep'        — run_chisep_MUMC.m
+% steps_arg (optional cell array):
+%   'prepare_mgre'  — prepare_mgre.m  (default first half, run before register_atlas)
+%   'qsm'           — run_QSM_chisep.m  (writes mag_e1.nii.gz needed by register)
+%   'chisep'        — run_chisep_MUMC.m (default second half, run after register)
 %   'mimm'          — run_MIMM_MUMC.m
-%   'grase'         — grase/ingest_grase.m  (skipped if MWF_native not present)
+%   'grase'         — grase/ingest_grase.m (skipped if MWF_native.nii.gz absent)
 %
-% Note: shell-based steps (register_atlas.sh, preprocess_dti.sh) are run
-% separately by run_cohort.sh before this function is called.
+% prefix_arg (optional string):
+%   Series number prefix for prepare_mgre.m (e.g. '501').
+%   Auto-detected from the first *-ME_GRE_e1.nii.gz file if not supplied.
+%
+% IMPORTANT — correct call order from run_cohort.sh:
+%   1. run_subject(..., {'prepare_mgre','qsm'})   % creates mag_e1.nii.gz
+%   2. register_atlas.sh                          % needs mag_e1.nii.gz
+%   3. preprocess_dti.sh                          % needs mag_e1.nii.gz
+%   4. run_subject(..., {'chisep','mimm'})         % needs atlas outputs
 
 if nargin < 4 || isempty(steps_arg)
     steps_arg = {'prepare_mgre', 'qsm', 'chisep', 'mimm'};
 end
+if nargin < 5; prefix_arg = ''; end
 
 % ── Set all path variables (mirrors paths_template.m) ────────────────────────
+% Variables set here are consumed by the scripts called via run() below.
+% MATLAB's analyser cannot see into run() callers so NASGU warnings are expected.
 input_dir  = subj_dir_arg;
 output_dir = subj_dir_arg;
-mimm_root  = mimm_root_arg;   % this variable being set triggers the guard in each script
-chisep_dir = chisep_dir_arg;
+subj_dir   = subj_dir_arg;   %#ok<NASGU> % alias used by run_MIMM_MUMC.m and others
+mimm_root  = mimm_root_arg;  % triggers the paths.m guard in each pipeline script
+chisep_dir = chisep_dir_arg; %#ok<NASGU>
 
 qsm_dir    = fullfile(output_dir, 'qsm');
 mimm_dir   = fullfile(output_dir, 'mimm');
@@ -72,6 +83,18 @@ for s = steps_arg
 
     switch step
         case 'prepare_mgre'
+            % Resolve the series-number prefix. Use supplied value if given;
+            % otherwise auto-detect from the first *-ME_GRE_e1.nii.gz in input_dir.
+            if ~isempty(prefix_arg)
+                prefix = prefix_arg; %#ok<NASGU>
+            else
+                hits = dir(fullfile(input_dir, '*-ME_GRE_e1.nii.gz'));
+                if isempty(hits)
+                    error('[run_subject] No *-ME_GRE_e1.nii.gz found in %s. Supply prefix_arg.', input_dir);
+                end
+                prefix = strrep(hits(1).name, '-ME_GRE_e1.nii.gz', '');
+                fprintf('  [auto-prefix] detected prefix: %s\n', prefix);
+            end
             run(fullfile(pipeline_dir, 'preprocess', 'prepare_mgre.m'));
 
         case 'qsm'

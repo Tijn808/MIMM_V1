@@ -29,7 +29,9 @@ if ~exist('mimm_root', 'var')
 end
 data_dir  = input_dir;
 subj_dir  = input_dir;
-prefix    = '501';   % subject/series number prefix — adapt per subject
+if ~exist('prefix', 'var')
+    prefix = '501';   % adapt per subject, or supply via run_subject.m / run_cohort.sh
+end
 
 n_echoes  = 5;
 TE        = zeros(1, n_echoes);   % filled from JSON below

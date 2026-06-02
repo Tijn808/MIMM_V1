@@ -15,7 +15,13 @@
 #
 # Options:
 #   --steps  STEPS   Comma-separated list of steps to run (default: all)
-#                    Available: register,dti,matlab,python,cohort
+#                    matlab_pre  — prepare_mgre + QSM  (writes mag_e1; run first)
+#                    register    — FSL atlas registration (needs mag_e1)
+#                    dti         — topup/eddy/dtifit     (needs mag_e1, optional)
+#                    matlab_post — chi-sep + MIMM        (needs register outputs)
+#                    python      — all per-subject analysis scripts
+#                    cohort      — aggregate + cohort figures
+#                    matlab      — shorthand for matlab_pre + matlab_post
 #   --subjects PATT  Glob pattern for subject dirs (default: sub-*)
 #   --dry-run        Print commands without executing
 #   --skip-done      Skip a subject's step if its expected output exists
@@ -23,7 +29,8 @@
 # Examples:
 #   bash run_cohort.sh /data/MUMC /home/user/MIMM /data/chisep
 #   bash run_cohort.sh /data/MUMC /home/user/MIMM /data/chisep --steps matlab,python
-#   bash run_cohort.sh /data/MUMC /home/user/MIMM /data/chisep --subjects sub-0{1,2,3}
+#   bash run_cohort.sh /data/MUMC /home/user/MIMM /data/chisep --steps python,cohort
+#   bash run_cohort.sh /data/MUMC /home/user/MIMM /data/chisep --subjects sub-0{1,2,3} --skip-done
 # ============================================================================
 
 set -e
@@ -37,7 +44,9 @@ fi
 COHORT_DIR="$1"; MIMM_ROOT="$2"; CHISEP_DIR="$3"; shift 3
 
 # ── Parse options ─────────────────────────────────────────────────────────────
-STEPS="register,dti,matlab,python,cohort"
+# Correct order: matlab_pre (prepare+qsm) → register → dti → matlab_post (chisep+mimm)
+# register and dti both need qsm/mag_e1.nii.gz which is written by the qsm step.
+STEPS="matlab_pre,register,dti,matlab_post,python,cohort"
 SUBJ_PATTERN="sub-*"
 DRY_RUN=false
 SKIP_DONE=false
@@ -76,7 +85,15 @@ skip_if_done() {
     return 1
 }
 
-step_enabled() { echo ",$STEPS," | grep -q ",$1,"; }
+# 'matlab' alone is a shorthand that enables both matlab_pre and matlab_post.
+step_enabled() {
+    local name="$1"
+    if [[ "$name" == "matlab_pre" || "$name" == "matlab_post" ]]; then
+        echo ",$STEPS," | grep -qE ",(${name}|matlab),"
+    else
+        echo ",$STEPS," | grep -q ",$name,"
+    fi
+}
 
 log() { echo ""; echo "=== $* ==="; }
 
@@ -93,7 +110,21 @@ for SUBJ_DIR in "${SUBJECTS[@]}"; do
     SUBJ_ID=$(basename "$SUBJ_DIR")
     log "Subject: $SUBJ_ID"
 
-    # ── Step 1: Atlas registration (FSL) ─────────────────────────────────────
+    # ── Step 1: MATLAB pre — prepare_mgre + QSM ──────────────────────────────
+    # MUST run first: writes qsm/mag_e1.nii.gz needed by register and dti.
+    if step_enabled matlab_pre; then
+        QSM_OUT="$SUBJ_DIR/qsm/mag_e1.nii.gz"
+        if ! skip_if_done "$QSM_OUT" "matlab_pre (prepare+qsm)"; then
+            echo "  [matlab_pre] $SUBJ_ID"
+            run_cmd matlab -batch \
+                "addpath('$PIPELINE_DIR'); \
+                 run_subject('$SUBJ_DIR', '$MIMM_ROOT', '$CHISEP_DIR', \
+                             {'prepare_mgre','qsm'})"
+        fi
+    fi
+
+    # ── Step 2: Atlas registration (FSL) ─────────────────────────────────────
+    # Needs qsm/mag_e1.nii.gz — must follow matlab_pre.
     if step_enabled register; then
         ATLAS_OUT="$SUBJ_DIR/atlas/theta_atlas.nii.gz"
         if ! skip_if_done "$ATLAS_OUT" "register_atlas"; then
@@ -102,7 +133,8 @@ for SUBJ_DIR in "${SUBJECTS[@]}"; do
         fi
     fi
 
-    # ── Step 2: DTI preprocessing (optional — only if dti.nii.gz exists) ─────
+    # ── Step 3: DTI preprocessing (optional — only if dti.nii.gz exists) ─────
+    # Needs qsm/mag_e1.nii.gz — must follow matlab_pre.
     if step_enabled dti; then
         DTI_INPUT="$SUBJ_DIR/dti/dti.nii.gz"
         DTI_OUT="$SUBJ_DIR/dti/FA.nii.gz"
@@ -123,14 +155,16 @@ for SUBJ_DIR in "${SUBJECTS[@]}"; do
         fi
     fi
 
-    # ── Step 3: MATLAB pipeline (prepare → QSM → chi-sep → MIMM) ────────────
-    if step_enabled matlab; then
+    # ── Step 4: MATLAB post — chi-sep + MIMM ─────────────────────────────────
+    # Needs atlas outputs from register and QSM outputs from matlab_pre.
+    if step_enabled matlab_post; then
         MIMM_OUT="$SUBJ_DIR/mimm/MVF_basic.nii.gz"
-        if ! skip_if_done "$MIMM_OUT" "matlab pipeline"; then
-            echo "  [matlab] $SUBJ_ID"
+        if ! skip_if_done "$MIMM_OUT" "matlab_post (chisep+mimm)"; then
+            echo "  [matlab_post] $SUBJ_ID"
             run_cmd matlab -batch \
                 "addpath('$PIPELINE_DIR'); \
-                 run_subject('$SUBJ_DIR', '$MIMM_ROOT', '$CHISEP_DIR')"
+                 run_subject('$SUBJ_DIR', '$MIMM_ROOT', '$CHISEP_DIR', \
+                             {'chisep','mimm'})"
         fi
     fi
 
