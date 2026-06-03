@@ -197,7 +197,8 @@ for SUBJ_DIR in "${SUBJECTS[@]}"; do
         run_cmd python3 "$ANALYSIS_DIR/generate_figures.py"
         run_cmd python3 "$ANALYSIS_DIR/plot_roi_stats.py"
         run_cmd python3 "$ANALYSIS_DIR/analyse_overestimation.py"
-        run_cmd python3 "$ANALYSIS_DIR/plot_mwf.py"   # exits cleanly if no GRASE
+        run_cmd python3 "$ANALYSIS_DIR/plot_mwf.py"     # exits cleanly if no GRASE
+        run_cmd python3 "$ANALYSIS_DIR/plot_lesion.py"  # exits cleanly if no lesion mask
 
         unset MIMM_OUTPUT_DIR
     fi

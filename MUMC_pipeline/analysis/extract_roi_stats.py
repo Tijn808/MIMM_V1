@@ -176,45 +176,64 @@ if os.path.exists(mwf_path):
     maps['MWF'] = load(mwf_path)
     print('T2-GRASE MWF found — including in ROI stats.')
 
+# Lesion mask (optional — registered to ME-GRE by register_flair.sh).
+# When present, a second table (NAWM) is written with lesion voxels removed
+# from every ROI, so diffuse normal-appearing-WM changes aren't contaminated
+# by focal lesions.
+lesion_path = os.path.join(subj_dir, 'lesion', 'lesion_mask.nii.gz')
+lesion = load(lesion_path).astype(bool) if os.path.exists(lesion_path) else None
+if lesion is not None:
+    print(f'Lesion mask found ({int(lesion.sum())} voxels) — will also write NAWM stats.')
+
 # -------------------------------------------------------------------------
-# Main loop: per-ROI statistics
+# Per-ROI statistics over JHU_LABELS
 # -------------------------------------------------------------------------
+def build_roi_table(exclude_mask=None):
+    """Per-ROI stats. If exclude_mask is given, those voxels are removed from
+    every ROI (used for NAWM = normal-appearing white matter)."""
+    rows = []
+    for idx, name in sorted(JHU_LABELS.items()):
+        roi_mask = labels == idx
+        if exclude_mask is not None:
+            roi_mask = roi_mask & ~exclude_mask
+        n_vox = int(roi_mask.sum())
+        if n_vox == 0:
+            continue
+
+        fa_weights = fa[roi_mask].clip(min=0)   # negative FA values are artefacts
+        row = {'ROI_index': idx, 'ROI_name': name, 'n_voxels': n_vox}
+
+        for map_name, vol in maps.items():
+            s = roi_stats(vol[roi_mask], fa_weights)
+            for stat_name, val in s.items():
+                row[f'{map_name}_{stat_name}'] = val
+
+        # Within-ROI Pearson r: MVF_basic vs chi_neg_chisep
+        mvf  = maps['MVF_basic'][roi_mask]
+        cneg = maps['chi_neg_chisep'][roi_mask]
+        finite = np.isfinite(mvf) & np.isfinite(cneg)
+        if finite.sum() > 2:
+            r, p = stats.pearsonr(mvf[finite], cneg[finite])
+            row['r_MVF_vs_chineg'] = float(r)
+            row['p_MVF_vs_chineg'] = float(p)
+        else:
+            row['r_MVF_vs_chineg'] = np.nan
+            row['p_MVF_vs_chineg'] = np.nan
+
+        rows.append(row)
+    return pd.DataFrame(rows)
+
 print('Extracting ROI statistics...')
-rows = []
-
-for idx, name in sorted(JHU_LABELS.items()):
-    roi_mask = labels == idx
-    n_vox = int(roi_mask.sum())
-    if n_vox == 0:
-        continue
-
-    fa_weights = fa[roi_mask].clip(min=0)   # negative FA values are artefacts
-
-    row = {'ROI_index': idx, 'ROI_name': name, 'n_voxels': n_vox}
-
-    for map_name, vol in maps.items():
-        s = roi_stats(vol[roi_mask], fa_weights)
-        for stat_name, val in s.items():
-            row[f'{map_name}_{stat_name}'] = val
-
-    # Within-ROI Pearson r: MVF_basic vs chi_neg_chisep
-    mvf  = maps['MVF_basic'][roi_mask]
-    cneg = maps['chi_neg_chisep'][roi_mask]
-    finite = np.isfinite(mvf) & np.isfinite(cneg)
-    if finite.sum() > 2:
-        r, p = stats.pearsonr(mvf[finite], cneg[finite])
-        row['r_MVF_vs_chineg'] = float(r)
-        row['p_MVF_vs_chineg'] = float(p)
-    else:
-        row['r_MVF_vs_chineg'] = np.nan
-        row['p_MVF_vs_chineg'] = np.nan
-
-    rows.append(row)
-
-df = pd.DataFrame(rows)
+df = build_roi_table()
 out_csv = os.path.join(out_dir, 'roi_stats.csv')
 df.to_csv(out_csv, index=False, float_format='%.5f')
-print(f'Saved: {out_csv}  ({len(rows)} ROIs)')
+print(f'Saved: {out_csv}  ({len(df)} ROIs)')
+
+if lesion is not None:
+    df_nawm = build_roi_table(exclude_mask=lesion)
+    nawm_csv = os.path.join(out_dir, 'roi_stats_nawm.csv')
+    df_nawm.to_csv(nawm_csv, index=False, float_format='%.5f')
+    print(f'Saved: {nawm_csv}  ({len(df_nawm)} ROIs, lesion voxels excluded)')
 
 # -------------------------------------------------------------------------
 # Laterality index: LI = (R - L) / (R + L) for paired tracts

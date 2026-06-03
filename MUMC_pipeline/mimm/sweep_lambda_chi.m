@@ -19,11 +19,14 @@
 %   lambda_chi_sweep.png   slope / bias / r vs lambda_chi, default marked
 
 %% --- Paths ---
-paths_file = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'paths.m');
-if ~exist(paths_file, 'file')
-    error('paths.m not found. Copy MUMC_pipeline/paths_template.m to paths.m and fill in your paths.');
+if ~exist('mimm_root', 'var')
+    paths_file = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'paths.m');
+    if ~exist(paths_file, 'file')
+        error('paths.m not found. Copy MUMC_pipeline/paths_template.m to paths.m and fill in your paths.');
+    end
+    run(paths_file);
 end
-run(paths_file);
+subj_dir = input_dir;   % paths.m provides input_dir/output_dir, not subj_dir
 run(fullfile(mimm_root, 'MIMM_set_path.m'));
 
 %% --- Sweep configuration ---
