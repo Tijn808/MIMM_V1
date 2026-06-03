@@ -107,11 +107,14 @@ for s = steps_arg
             run(fullfile(pipeline_dir, 'mimm', 'run_MIMM_MUMC.m'));
 
         case 'grase'
-            mwf_native = fullfile(grase_dir, 'MWF_native.nii.gz');
-            if exist(mwf_native, 'file')
+            % Run if any accepted native MWF map is present (MUMC outputs MWF.nii).
+            have_mwf = exist(fullfile(grase_dir, 'MWF_native.nii.gz'), 'file') || ...
+                       exist(fullfile(grase_dir, 'MWF_native.nii'),    'file') || ...
+                       exist(fullfile(grase_dir, 'MWF.nii'),           'file');
+            if have_mwf
                 run(fullfile(pipeline_dir, 'grase', 'ingest_grase.m'));
             else
-                fprintf('  [skip] MWF_native.nii.gz not found in %s\n', grase_dir);
+                fprintf('  [skip] no native MWF map in %s (MWF_native.nii.gz / MWF.nii)\n', grase_dir);
             end
 
         otherwise

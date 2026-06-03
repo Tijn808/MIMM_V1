@@ -155,16 +155,17 @@ for SUBJ_DIR in "${SUBJECTS[@]}"; do
         fi
     fi
 
-    # ── Step 4: MATLAB post — chi-sep + MIMM ─────────────────────────────────
+    # ── Step 4: MATLAB post — chi-sep + MIMM + GRASE ingest ──────────────────
     # Needs atlas outputs from register and QSM outputs from matlab_pre.
+    # 'grase' ingests the MWF map if present (MUMC MWF.nii), else skips cleanly.
     if step_enabled matlab_post; then
         MIMM_OUT="$SUBJ_DIR/mimm/MVF_basic.nii.gz"
-        if ! skip_if_done "$MIMM_OUT" "matlab_post (chisep+mimm)"; then
+        if ! skip_if_done "$MIMM_OUT" "matlab_post (chisep+mimm+grase)"; then
             echo "  [matlab_post] $SUBJ_ID"
             run_cmd matlab -batch \
                 "addpath('$PIPELINE_DIR'); \
                  run_subject('$SUBJ_DIR', '$MIMM_ROOT', '$CHISEP_DIR', \
-                             {'chisep','mimm'})"
+                             {'chisep','mimm','grase'})"
         fi
     fi
 

@@ -21,7 +21,9 @@ analysis_d = fullfile(output_dir, 'analysis');
 sep_dir    = fullfile(output_dir, 'source_separation');
 grase_dir  = fullfile(output_dir, 'grase');   % T2-GRASE MWF (registered to ME-GRE)
 dti_dir    = fullfile(output_dir, 'dti');
+lesion_dir = fullfile(output_dir, 'lesion'); % T2-FLAIR lesion mask (registered to ME-GRE)
+t1w_dir    = fullfile(output_dir, 't1w');    % T1w (used by LST for lesion segmentation)
 
-for d = {qsm_dir, mimm_dir, chisep_out, atlas_dir, fig_dir, analysis_d, sep_dir, grase_dir, dti_dir}
+for d = {qsm_dir, mimm_dir, chisep_out, atlas_dir, fig_dir, analysis_d, sep_dir, grase_dir, dti_dir, lesion_dir, t1w_dir}
     if ~exist(d{1}, 'dir'); mkdir(d{1}); end
 end

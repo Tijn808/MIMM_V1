@@ -5,10 +5,15 @@
 % voxel with MIMM MVF maps. Registration uses a rigid-body (6 DOF) flirt to align
 % the GRASE volume to the ME-GRE echo 1 magnitude.
 %
-% Inputs expected in grase_raw_dir:
-%   MWF_native.nii.gz   — MWF map in native T2-GRASE space (from T2-relaxometry)
-%   b0.nii.gz           — any GRASE volume suitable for registration (b=0 or T2w)
-%                         (if absent, MWF_native is used directly as the reference)
+% Inputs expected in subj_dir/grase/  (native MWF map — first match used):
+%   MWF_native.nii.gz / MWF_native.nii / MWF.nii   MWF map in T2-GRASE space.
+%   MUMC's MWFfit.m (020_MWF_calc.sh) outputs an uncompressed MWF.nii — drop it
+%   in directly, no rename needed (the pipeline OUTPUT is MWF.nii.gz, distinct).
+%
+% Registration source (best contrast first — first match used):
+%   b0.nii.gz / b0.nii                 explicit registration target, OR
+%   grase.nii.gz / grase.nii           4D GRASE series → first volume extracted, OR
+%   (fallback) the MWF map itself      low contrast, last resort
 %
 % Outputs (written to subj_dir/grase/):
 %   MWF.nii.gz          — MWF in ME-GRE space (1 mm iso, same grid as MVF maps)
@@ -35,25 +40,57 @@ end
 
 out_dir = grase_dir;   % subj_dir/grase/
 
-%% --- Locate inputs ---
-mwf_native = fullfile(out_dir, 'MWF_native.nii.gz');
-b0_grase   = fullfile(out_dir, 'b0.nii.gz');
-ref        = fullfile(qsm_dir, 'mag_e1.nii.gz');
-
-if ~exist(mwf_native, 'file')
-    error('MWF_native.nii.gz not found in %s.\nCopy the T2-GRASE MWF map there first.', out_dir);
-end
+%% --- Locate the native MWF map (accept MUMC and pipeline naming) ---
+ref = fullfile(qsm_dir, 'mag_e1.nii.gz');
 if ~exist(ref, 'file')
     error('ME-GRE echo-1 reference not found: %s\nRun run_QSM_chisep.m first.', ref);
 end
 
-% Use b0_grase as registration source if present; otherwise register MWF directly.
-if exist(b0_grase, 'file')
-    reg_src = b0_grase;
-    disp('Using b0.nii.gz as registration source.');
-else
+mwf_candidates = {'MWF_native.nii.gz', 'MWF_native.nii', 'MWF.nii'};
+mwf_native = '';
+for k = 1:numel(mwf_candidates)
+    cand = fullfile(out_dir, mwf_candidates{k});
+    if exist(cand, 'file'); mwf_native = cand; break; end
+end
+if isempty(mwf_native)
+    if exist(fullfile(out_dir, 'MWF.nii.gz'), 'file')
+        error(['Found MWF.nii.gz in %s, but that is the pipeline OUTPUT name.\n' ...
+               'Rename the native MUMC map to MWF_native.nii.gz to avoid a collision.'], out_dir);
+    end
+    error(['Native MWF map not found in %s.\n' ...
+           'Accepted: MWF_native.nii.gz, MWF_native.nii, or MWF.nii (MUMC output).'], out_dir);
+end
+fprintf('Native MWF map: %s\n', mwf_native);
+
+%% --- Choose registration source (best contrast first) ---
+reg_src    = '';
+grase_vol0 = '';   % tracked for cleanup if we extract it
+
+% 1. explicit b0 / registration target
+for c = {'b0.nii.gz', 'b0.nii'}
+    cand = fullfile(out_dir, c{1});
+    if exist(cand, 'file'); reg_src = cand; fprintf('Registration source: %s\n', c{1}); break; end
+end
+
+% 2. first volume of the 4D GRASE series (T2-weighted — good registration target)
+if isempty(reg_src)
+    for c = {'grase.nii.gz', 'grase.nii'}
+        g = fullfile(out_dir, c{1});
+        if exist(g, 'file')
+            grase_vol0 = fullfile(out_dir, 'grase_vol0.nii.gz');
+            st = system(sprintf('"%s/fslroi" "%s" "%s" 0 1', fsl, g, grase_vol0));
+            if st ~= 0; error('fslroi failed extracting first GRASE volume from %s.', c{1}); end
+            reg_src = grase_vol0;
+            fprintf('Registration source: first volume of %s\n', c{1});
+            break;
+        end
+    end
+end
+
+% 3. fall back to the MWF map itself (low contrast, last resort)
+if isempty(reg_src)
     reg_src = mwf_native;
-    disp('b0.nii.gz not found — registering MWF_native.nii.gz directly to ME-GRE.');
+    disp('No b0/grase found — registering the MWF map directly (lower contrast).');
 end
 
 %% --- Rigid-body registration: GRASE → ME-GRE ---
@@ -74,14 +111,32 @@ cmd = sprintf('"%s/flirt" -in "%s" -ref "%s" -applyxfm -init "%s" -out "%s" -int
 status = system(cmd);
 if status ~= 0; error('flirt applyxfm failed.'); end
 
+%% --- Clean up temporary registration volume ---
+if ~isempty(grase_vol0) && exist(grase_vol0, 'file')
+    delete(grase_vol0);
+end
+
+%% --- Unit check: ensure MWF is a fraction (0-1), not a percentage (0-100) ---
+% MIMM MVF is a fraction; the comparison figures assume MWF is too. MUMC's
+% MWFfit may return percent. If the in-brain median exceeds 1.0, rescale by /100.
+mwf_vol   = double(niftiread(mwf_out));
+brain_vol = logical(niftiread(fullfile(qsm_dir, 'brain_mask.nii.gz')));
+wm_vals   = mwf_vol(brain_vol & (mwf_vol > 0));
+
+if ~isempty(wm_vals) && median(wm_vals) > 1.0
+    fprintf('  MWF median = %.1f (>1) — looks like percent; rescaling /100 to fraction.\n', ...
+        median(wm_vals));
+    mwf_vol = mwf_vol / 100;
+    out_info = niftiinfo(mwf_out);
+    niftiwrite(mwf_vol, mwf_out, out_info, 'Compressed', true);
+    wm_vals = mwf_vol(brain_vol & (mwf_vol > 0));
+end
+
 %% --- Sanity check ---
 info = niftiinfo(mwf_out);
 fprintf('\nDone. MWF.nii.gz written to: %s\n', mwf_out);
 fprintf('  Grid: %s  VoxelSize: %s mm\n', mat2str(info.ImageSize), mat2str(info.PixelDimensions));
 
-mwf_vol   = double(niftiread(mwf_out));
-brain_vol = logical(niftiread(fullfile(qsm_dir, 'brain_mask.nii.gz')));
-wm_vals   = mwf_vol(brain_vol & (mwf_vol > 0));
 if ~isempty(wm_vals)
     fprintf('  MWF brain percentiles  P5=%.3f  P50=%.3f  P95=%.3f\n', ...
         prctile(wm_vals, 5), prctile(wm_vals, 50), prctile(wm_vals, 95));
