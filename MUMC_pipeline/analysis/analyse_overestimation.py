@@ -16,6 +16,7 @@ Produces:
 import numpy as np
 import nibabel as nib
 import pandas as pd
+import warnings; warnings.simplefilter('ignore', pd.errors.PerformanceWarning)  # ~50-row ROI tables; fragmentation is irrelevant
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as pe
 from scipy import stats

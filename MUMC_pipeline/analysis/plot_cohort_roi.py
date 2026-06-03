@@ -12,6 +12,7 @@ Saved to COHORT_FIG/.
 
 import numpy as np
 import pandas as pd
+import warnings; warnings.simplefilter('ignore', pd.errors.PerformanceWarning)  # ~50-row ROI tables; fragmentation is irrelevant
 import matplotlib.pyplot as plt
 from scipy.stats import pearsonr
 import os

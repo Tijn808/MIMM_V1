@@ -5,6 +5,7 @@ Statistical figures for JHU ROI analysis of MIMM output maps.
 import numpy as np
 import nibabel as nib
 import pandas as pd
+import warnings; warnings.simplefilter('ignore', pd.errors.PerformanceWarning)  # ~50-row ROI tables; fragmentation is irrelevant
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from scipy.stats import pearsonr
