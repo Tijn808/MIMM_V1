@@ -64,6 +64,21 @@ done
 # ── FSL path ──────────────────────────────────────────────────────────────────
 FSL="${FSLDIR:-/home/tijn-saes/fsl}/bin"
 
+# ── MATLAB binary ─────────────────────────────────────────────────────────────
+# Honour $MATLAB_BIN if set, else a found-on-PATH matlab, else the local install.
+if [ -n "$MATLAB_BIN" ]; then
+    MATLAB="$MATLAB_BIN"
+elif command -v matlab >/dev/null 2>&1; then
+    MATLAB="matlab"
+else
+    MATLAB="/home/tijn-saes/Desktop/bin/matlab"
+fi
+if [ ! -x "$MATLAB" ] && ! command -v "$MATLAB" >/dev/null 2>&1; then
+    echo "ERROR: MATLAB not found. Set MATLAB_BIN=/path/to/matlab or add it to PATH."
+    exit 1
+fi
+echo "Using MATLAB: $MATLAB"
+
 # ── Python and analysis dir ───────────────────────────────────────────────────
 ANALYSIS_DIR="$MIMM_ROOT/MUMC_pipeline/analysis"
 PIPELINE_DIR="$MIMM_ROOT/MUMC_pipeline"
@@ -116,7 +131,7 @@ for SUBJ_DIR in "${SUBJECTS[@]}"; do
         QSM_OUT="$SUBJ_DIR/qsm/mag_e1.nii.gz"
         if ! skip_if_done "$QSM_OUT" "matlab_pre (prepare+qsm)"; then
             echo "  [matlab_pre] $SUBJ_ID"
-            run_cmd matlab -batch \
+            run_cmd "$MATLAB" -batch \
                 "addpath('$PIPELINE_DIR'); \
                  run_subject('$SUBJ_DIR', '$MIMM_ROOT', '$CHISEP_DIR', \
                              {'prepare_mgre','qsm'})"
@@ -162,7 +177,7 @@ for SUBJ_DIR in "${SUBJECTS[@]}"; do
         MIMM_OUT="$SUBJ_DIR/mimm/MVF_basic.nii.gz"
         if ! skip_if_done "$MIMM_OUT" "matlab_post (chisep+mimm+grase)"; then
             echo "  [matlab_post] $SUBJ_ID"
-            run_cmd matlab -batch \
+            run_cmd "$MATLAB" -batch \
                 "addpath('$PIPELINE_DIR'); \
                  run_subject('$SUBJ_DIR', '$MIMM_ROOT', '$CHISEP_DIR', \
                              {'chisep','mimm','grase'})"
