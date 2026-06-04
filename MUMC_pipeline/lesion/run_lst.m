@@ -37,9 +37,19 @@ if ~exist(flair_gz, 'file')
     error('FLAIR_native.nii.gz not found in %s.\nCopy the T2-FLAIR NIfTI there first.', lesion_d);
 end
 
-%% --- Check SPM + LST are available ---
+%% --- Check SPM + LST are available (auto-add from known location) ---
+% Honour $SPM_DIR if set, else the local install at ~/spm12.
 if ~exist('spm', 'file')
-    error('SPM12 not found on MATLAB path. Add SPM12 to path: addpath(''/path/to/spm12'')');
+    spm_dir = getenv('SPM_DIR');
+    if isempty(spm_dir); spm_dir = fullfile(getenv('HOME'), 'spm12'); end
+    if exist(fullfile(spm_dir, 'spm.m'), 'file')
+        addpath(spm_dir);
+        addpath(fullfile(spm_dir, 'toolbox', 'LST'));
+    else
+        error(['SPM12 not found. Install it (e.g. git clone ' ...
+               'https://github.com/spm/spm12 ~/spm12) or set $SPM_DIR, ' ...
+               'then re-run.']);
+    end
 end
 try
     spm('Defaults', 'fMRI');
@@ -47,9 +57,15 @@ catch
     error('SPM12 initialisation failed.');
 end
 if ~exist('ps_LST_lpa', 'file')
-    error(['LST toolbox not found. Install from:\n' ...
-           'https://www.applied-statistics.de/lst.html\n' ...
-           'and add to MATLAB path.']);
+    % SPM is on path but LST toolbox isn't — try the standard toolbox location.
+    lst_dir = fullfile(fileparts(which('spm')), 'toolbox', 'LST');
+    if exist(fullfile(lst_dir, 'ps_LST_lpa.m'), 'file')
+        addpath(lst_dir);
+    else
+        error(['LST toolbox not found. Install LST_3.0.0.zip from ' ...
+               'https://www.applied-statistics.de/lst.html into ' ...
+               'spm12/toolbox/LST.']);
+    end
 end
 
 %% --- Decompress inputs (LST requires uncompressed .nii) ---
