@@ -1,7 +1,7 @@
 % Prepare MUMC ME-GRE data for QSM and MIMM pipeline
 %
 % Converts per-echo NIfTI files (from dcm2niix) into 4D magnitude and
-% phase arrays expected by run_QSM.m and run_MIMM_MUMC.m.
+% phase arrays expected by run_QSM_chisep.m and run_MIMM_MUMC.m.
 %
 % Philips phase scaling (from JSON sidecar):
 %   Stored as INT16. niftiread applies scl_slope/scl_inter automatically,

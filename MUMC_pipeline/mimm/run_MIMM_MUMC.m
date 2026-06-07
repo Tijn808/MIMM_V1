@@ -9,7 +9,7 @@
 %   Matrix   : 224 x 224 x 154
 %
 % Prerequisites (must be completed before this script):
-%   1. QSM reconstruction       — MUMC_pipeline/qsm/run_QSM.m
+%   1. QSM reconstruction       — MUMC_pipeline/qsm/run_QSM_chisep.m
 %   2. DTI preprocessing        — topup + eddy + dtifit (or use atlas theta)
 %   3. All outputs registered to ME-GRE space
 %

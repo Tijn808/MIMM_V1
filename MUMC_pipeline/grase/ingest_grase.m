@@ -31,12 +31,11 @@ if ~exist('mimm_root', 'var')
     run(paths_file);
 end
 
-% FSL path (same logic as preprocess_dti.sh / register_atlas.sh)
-if ~isempty(getenv('FSLDIR'))
-    fsl = fullfile(getenv('FSLDIR'), 'bin');
-else
-    fsl = '/home/tijn-saes/fsl/bin';
+% FSL path comes from $FSLDIR (same as preprocess_dti.sh / register_atlas.sh)
+if isempty(getenv('FSLDIR'))
+    error('FSLDIR is not set. Export it to your FSL install before running.');
 end
+fsl = fullfile(getenv('FSLDIR'), 'bin');
 
 out_dir = grase_dir;   % subj_dir/grase/
 

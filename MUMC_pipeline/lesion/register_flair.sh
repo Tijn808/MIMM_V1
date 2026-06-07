@@ -17,7 +17,8 @@
 set -e
 SUBJ_DIR="${1:?Usage: $0 <subj_dir>}"
 
-if [ -n "$FSLDIR" ]; then FSL="${FSLDIR}/bin"; else FSL=/home/tijn-saes/fsl/bin; fi
+if [ -z "$FSLDIR" ]; then echo "ERROR: FSLDIR is not set." >&2; exit 1; fi
+FSL="${FSLDIR}/bin"
 
 LESION_DIR="$SUBJ_DIR/lesion"
 REF="$SUBJ_DIR/qsm/mag_e1.nii.gz"

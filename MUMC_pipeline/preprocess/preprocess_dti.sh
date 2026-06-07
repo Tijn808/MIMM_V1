@@ -24,11 +24,11 @@ set -e
 SUBJ_DIR="${1:?Usage: $0 <subj_dir> [reverse_b0.nii.gz]}"
 REVERSE_B0="${2:-}"          # optional: reverse-PE b=0 for topup
 
-if [ -n "$FSLDIR" ]; then
-    FSL="${FSLDIR}/bin"
-else
-    FSL=/home/tijn-saes/fsl/bin
+if [ -z "$FSLDIR" ]; then
+    echo "ERROR: FSLDIR is not set. Export it to your FSL install (e.g. export FSLDIR=/usr/local/fsl)." >&2
+    exit 1
 fi
+FSL="${FSLDIR}/bin"
 DTI_DIR="${SUBJ_DIR}/dti"
 MAG_E1="${SUBJ_DIR}/qsm/mag_e1.nii.gz"
 MASK="${SUBJ_DIR}/qsm/brain_mask.nii.gz"

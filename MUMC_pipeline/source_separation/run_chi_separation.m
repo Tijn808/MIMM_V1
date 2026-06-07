@@ -20,7 +20,7 @@
 %   chi_neg = QSM - chi_pos    (diamagnetic myelin susceptibility)
 %
 % Inputs (all registered to ME-GRE 1 mm iso space):
-%   QSM map       : from qsm/run_QSM.m          (ppm)
+%   QSM map       : from qsm/run_QSM_chisep.m          (ppm)
 %   R2* map       : from SEPIA total field step  (s^-1)
 %   T2 map        : from T2-GRASE pipeline       (s)  — registered + resampled
 %   Brain mask    : from qsm/brain_mask.nii.gz   (binary)

@@ -287,6 +287,35 @@ Given the voxel-level bias of −0.058 ppm (figure 17), all ROI points should si
 
 ---
 
+## Figures 49–51 — Three-Way Myelin Comparison: chi-sep | MIMM atlas | T2-GRASE MWF
+**Files:** `49_three_way_spatial.png`, `50_three_way_scatter.png`, `51_three_way_ranking.png`
+**Script:** `plot_three_way.py` | **Data:** voxel + 48 JHU DTI-81 ROIs | **Dormant until `grase/MWF.nii.gz` exists**
+
+The headline cross-method figure set: the three independent in-vivo myelin
+markers side by side — MIMM atlas MVF, chi-separation |χ⁻| (diamagnetic
+susceptibility), and T2-GRASE MWF (the closest thing to a myelin gold standard).
+Uses MIMM **atlas** (orientation-corrected), not basic.
+
+- **Fig 49 (spatial):** the three maps on axial/coronal/sagittal slices, each on
+  its own physical scale with its own colourbar (MVF & MWF as fractions, |χ⁻| in
+  ppm). Visual co-localisation check.
+- **Fig 50 (pairwise scatter):** three ROI scatters with MWF on the x-axis as the
+  reference — MIMM vs MWF (identity line, both fractions), chi-sep vs MWF, and
+  MIMM vs chi-sep. Each prints Pearson r and p. This is where the three-way
+  agreement is quantified.
+- **Fig 51 (ranking):** per-ROI grouped bars, each marker min–max normalised to
+  0–1 (so the different units share one axis), ROIs sorted by MWF. Aligned bars =
+  the three markers rank that tract consistently; divergent bars flag tracts where
+  the methods disagree on relative myelination.
+
+**Expected (once T2 data lands):** strong positive correlations in all three
+panels of fig 50. MIMM-vs-MWF and chi-vs-MWF are the genuine external validations
+(MWF independent of mGRE); MIMM-vs-chi reproduces the figure-26 result with the
+atlas estimate. Tracts where chi-sep diverges from MWF but MIMM tracks it (or vice
+versa) are the scientifically interesting cases.
+
+---
+
 ## Figure 29 — ROI Scatter: MIMM MVF vs FA atlas
 **File:** `29_MVF_vs_FA.png` | **Script:** `plot_roi_stats.py` | **Data:** 48 JHU DTI-81 ROIs, colour by tract family
 

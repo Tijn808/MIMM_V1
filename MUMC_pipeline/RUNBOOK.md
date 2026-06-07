@@ -131,5 +131,6 @@ dictionary-coverage limit), so don't expect lambda alone to fully fix χ–QSM.
 | 23–25, 45 | Overestimation (ranked, vs θ, vs FA, spatial+JHU overlay) |
 | 26–29 | ROI scatters: MVF/χ⁻, χ_iron/χ⁺, χ_myelin/χ⁻, MVF/FA |
 | 38–41 | MWF: spatial, MVF-vs-MWF, Bland-Altman, bar (needs GRASE) |
+| 49–51 | Three-way chi-sep \| MIMM atlas \| MWF: spatial, scatter, ranking (needs GRASE) |
 | 46–48 | Lesion overlay, lesion-vs-NAWM, per-lesion MVF-vs-MWF (needs mask) |
 | 31–37, 42–44 | Cohort versions (between-subject SEM) |

@@ -12,24 +12,21 @@
 # Usage: bash register_atlas.sh <subj_dir>
 #   subj_dir must contain:
 #     qsm/brain_mask.nii.gz   — brain mask from BET/VSHARP
-#     qsm/mag_e1.nii.gz       — echo 1 magnitude (written by run_QSM.m)
+#     qsm/mag_e1.nii.gz       — echo 1 magnitude (written by run_QSM_chisep.m)
 
 set -e
 
 SUBJ_DIR="${1:?Usage: $0 <subj_dir>}"
 
-# FSL paths: honour $FSLDIR if set (conda, module-load, etc.), else fall back to server default
-if [ -n "$FSLDIR" ]; then
-    FSL="${FSLDIR}/bin"
-    STD="${FSLDIR}/data/standard"
-    ATLASDIR="${FSLDIR}/data/atlases"
-    CFG="${FSLDIR}/etc/flirtsch"
-else
-    FSL=/home/tijn-saes/fsl/bin
-    STD=/home/tijn-saes/fsl/data/standard
-    ATLASDIR=/home/tijn-saes/fsl/data/atlases
-    CFG=/home/tijn-saes/fsl/etc/flirtsch
+# FSL paths come from $FSLDIR (conda, module-load, project.config, etc.)
+if [ -z "$FSLDIR" ]; then
+    echo "ERROR: FSLDIR is not set. Export it to your FSL install (e.g. export FSLDIR=/usr/local/fsl)." >&2
+    exit 1
 fi
+FSL="${FSLDIR}/bin"
+STD="${FSLDIR}/data/standard"
+ATLASDIR="${FSLDIR}/data/atlases"
+CFG="${FSLDIR}/etc/flirtsch"
 
 OUT="${SUBJ_DIR}/atlas"
 mkdir -p "$OUT"

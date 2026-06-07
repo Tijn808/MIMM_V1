@@ -26,7 +26,7 @@ set -e
 SESSION="${1:?Usage: $0 <dicom_session_dir> <output_subj_dir>}"
 SUBJ="${2:?Usage: $0 <dicom_session_dir> <output_subj_dir>}"
 
-if [ -n "$FSLDIR" ]; then DCM="$FSLDIR/bin/dcm2niix"; else DCM=/home/tijn-saes/fsl/bin/dcm2niix; fi
+if [ -n "$FSLDIR" ]; then DCM="$FSLDIR/bin/dcm2niix"; else DCM=dcm2niix; fi
 if ! command -v "$DCM" >/dev/null 2>&1 && [ ! -x "$DCM" ]; then
     DCM=$(command -v dcm2niix) || { echo "dcm2niix not found. Set FSLDIR or add to PATH."; exit 1; }
 fi

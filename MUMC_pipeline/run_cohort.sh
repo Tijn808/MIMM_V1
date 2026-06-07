@@ -62,7 +62,11 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ── FSL path ──────────────────────────────────────────────────────────────────
-FSL="${FSLDIR:-/home/tijn-saes/fsl}/bin"
+if [ -z "$FSLDIR" ]; then
+    echo "ERROR: FSLDIR is not set. Export it to your FSL install (e.g. export FSLDIR=/usr/local/fsl)." >&2
+    exit 1
+fi
+FSL="${FSLDIR}/bin"
 
 # ── MATLAB binary ─────────────────────────────────────────────────────────────
 # Honour $MATLAB_BIN if set, else a found-on-PATH matlab, else the local install.
@@ -71,7 +75,8 @@ if [ -n "$MATLAB_BIN" ]; then
 elif command -v matlab >/dev/null 2>&1; then
     MATLAB="matlab"
 else
-    MATLAB="/home/tijn-saes/Desktop/bin/matlab"
+    echo "ERROR: MATLAB not found. Set MATLAB_BIN=/path/to/matlab or add matlab to PATH." >&2
+    exit 1
 fi
 if [ ! -x "$MATLAB" ] && ! command -v "$MATLAB" >/dev/null 2>&1; then
     echo "ERROR: MATLAB not found. Set MATLAB_BIN=/path/to/matlab or add it to PATH."
@@ -197,8 +202,9 @@ for SUBJ_DIR in "${SUBJECTS[@]}"; do
         run_cmd python3 "$ANALYSIS_DIR/generate_figures.py"
         run_cmd python3 "$ANALYSIS_DIR/plot_roi_stats.py"
         run_cmd python3 "$ANALYSIS_DIR/analyse_overestimation.py"
-        run_cmd python3 "$ANALYSIS_DIR/plot_mwf.py"     # exits cleanly if no GRASE
-        run_cmd python3 "$ANALYSIS_DIR/plot_lesion.py"  # exits cleanly if no lesion mask
+        run_cmd python3 "$ANALYSIS_DIR/plot_mwf.py"        # exits cleanly if no GRASE
+        run_cmd python3 "$ANALYSIS_DIR/plot_three_way.py"  # chi-sep|MIMM|MWF; needs GRASE
+        run_cmd python3 "$ANALYSIS_DIR/plot_lesion.py"     # exits cleanly if no lesion mask
 
         unset MIMM_OUTPUT_DIR
     fi

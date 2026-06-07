@@ -3,7 +3,7 @@
 # =========================================================================
 # 1. Copy this file to paths.py (same directory)
 # 2. Fill in the three paths below
-# 3. paths.py is gitignored — never committed
+# 3. paths.py is gitignored, never committed
 # =========================================================================
 
 import os
