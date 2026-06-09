@@ -32,8 +32,15 @@ command -v python3 >/dev/null 2>&1 && ok "python3" || no "python3 not found"
 python3 -c "import nibabel,numpy,pandas,scipy,matplotlib" 2>/dev/null && ok "python modules" || no "python modules missing (nibabel numpy pandas scipy matplotlib)"
 
 echo "-- chi-separation toolbox --"
-{ [ -n "$CHISEP_DIR" ] && [ -f "$CHISEP_DIR/setup_toolbox_paths.m" ]; } && ok "chi-sep toolbox" || no "CHISEP_DIR unset or missing setup_toolbox_paths.m"
-ls "$CHISEP_DIR"/utils/mritools_ubuntu*/bin/romeo >/dev/null 2>&1 && ok "ROMEO binary" || no "ROMEO binary not found under CHISEP_DIR/utils (OS mismatch?)"
+{ [ -n "$CHISEP_DIR" ] && [ -d "$CHISEP_DIR" ]; } && ok "chi-sep toolbox dir ($CHISEP_DIR)" || no "CHISEP_DIR unset or not a directory"
+# Find a ROMEO binary anywhere under it (handles nested copies) and check it runs
+romeo_ok=no; romeo_found=no
+for r in $(find "$CHISEP_DIR" -name romeo -path "*mritools*" -type f 2>/dev/null); do
+    romeo_found=yes
+    if "$r" --help >/dev/null 2>&1; then romeo_ok=yes; break; fi
+done
+[ "$romeo_found" = yes ] && ok "ROMEO binary present" || no "no ROMEO binary under CHISEP_DIR"
+[ "$romeo_ok" = yes ]    && ok "a ROMEO binary runs on this machine" || no "ROMEO found but none ran (glibc mismatch?)"
 
 echo "-- MIMM repo + dictionary --"
 [ -f "$MIMM_REPO/MIMM_set_path.m" ] && ok "MIMM repo ($MIMM_REPO)" || no "MIMM repo not found at MIMM_REPO"

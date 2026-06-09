@@ -25,8 +25,37 @@ subj_dir   = input_dir;
 output_dir = qsm_dir;
 
 %% --- Load toolboxes ---
-
-run(fullfile(chisep_dir, 'setup_toolbox_paths.m'));
+% Prefer the toolbox's own setup script if present. Otherwise (e.g. a copy that
+% does not ship setup_toolbox_paths.m, or one nested inside extra folders),
+% configure it ourselves: add everything under chisep_dir, then make sure the
+% ROMEO build whose binary actually runs on THIS machine is first on the path
+% (the 22.04 build runs on glibc 2.34; the 24.04 one needs a newer glibc).
+setup_file = fullfile(chisep_dir, 'setup_toolbox_paths.m');
+if exist(setup_file, 'file')
+    run(setup_file);
+else
+    fprintf('setup_toolbox_paths.m not found in %s — auto-configuring.\n', chisep_dir);
+    addpath(genpath(chisep_dir));
+    romeo_ms = dir(fullfile(chisep_dir, '**', 'mritools_*', 'matlab', 'ROMEO.m'));
+    picked = '';
+    for k = 1:numel(romeo_ms)
+        rbin = fullfile(romeo_ms(k).folder, '..', 'bin', 'romeo');
+        if isfile(rbin)
+            [st, ~] = system(sprintf('"%s" --help', rbin));
+            if st == 0
+                addpath(romeo_ms(k).folder);   % prepend: this ROMEO.m wins
+                picked = rbin;
+                break;
+            end
+        end
+    end
+    if isempty(picked)
+        error(['No working ROMEO binary found under %s. ' ...
+               'Checked %d mritools build(s); none ran on this machine.'], ...
+               chisep_dir, numel(romeo_ms));
+    end
+    fprintf('Using ROMEO binary: %s\n', picked);
+end
 
 %% --- Acquisition parameters ---
 
