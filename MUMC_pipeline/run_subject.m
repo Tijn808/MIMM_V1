@@ -85,8 +85,13 @@ for s = steps_arg
         case 'prepare_mgre'
             % Resolve the series-number prefix. Use supplied value if given;
             % otherwise auto-detect from the first *-ME_GRE_e1.nii.gz in input_dir.
+            has_mumc = exist(fullfile(input_dir, 'gremag.nii'),    'file') || ...
+                       exist(fullfile(input_dir, 'gremag.nii.gz'), 'file');
             if ~isempty(prefix_arg)
                 prefix = prefix_arg; %#ok<NASGU>
+            elseif has_mumc
+                prefix = ''; %#ok<NASGU>  % MUMC 4D format; prepare_mgre auto-detects it
+                fprintf('  [MUMC format] gremag/grepha detected\n');
             else
                 hits = dir(fullfile(input_dir, '*-ME_GRE_e1.nii.gz'));
                 if isempty(hits)

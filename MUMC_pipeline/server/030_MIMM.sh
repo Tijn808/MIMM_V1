@@ -59,12 +59,13 @@ logFile="$LOGDIR"/"$subjectName".log
 subjectDir="$RESULTDIR"/"$subjectName"
 workingDir=~/"$PROJECTDIR"/"$subjectName"
 
-# ME-GRE inputs written by 010. The series-number prefix differs per subject,
-# so we glob (*ME_GRE_e*) rather than hardcode names.
-# NOTE: confirm this pattern + extension (.nii.gz vs .nii) against a real 010
-#       output. prepare_mgre.m currently expects <prefix>-ME_GRE_e<n>.nii.gz.
-inputGlob="*ME_GRE_e1.nii.gz"
-inputPhaseGlob="*ME_GRE_e1_ph.nii.gz"
+# ME-GRE inputs written by MUMC's 010_DicomToNifti: two 4D files in nifti/
+#   nifti/gremag.nii  (magnitude, all echoes)
+#   nifti/grepha.nii  (phase,     all echoes)
+# prepare_mgre.m reads this layout directly.
+niftiDir="$subjectDir/nifti"
+inputMag="$niftiDir/gremag.nii"
+inputPha="$niftiDir/grepha.nii"
 
 ################################################################################
 # Start
@@ -88,17 +89,17 @@ fail() {
 [ -n "$subjectName" ] || fail "no subjectName given (usage: $SCRIPTNAME <subjectName>)"
 [ -d "$subjectDir" ]  || fail "subject directory not found: $subjectDir"
 
-# Check the ME-GRE input exists (echo-1 magnitude + phase)
-ls "$subjectDir"/$inputGlob       >/dev/null 2>&1 || fail "ME-GRE magnitude ($inputGlob) not found in $subjectDir"
-ls "$subjectDir"/$inputPhaseGlob  >/dev/null 2>&1 || fail "ME-GRE phase ($inputPhaseGlob) not found in $subjectDir"
+# Check the ME-GRE input exists (accept .nii or .nii.gz)
+{ [ -f "$inputMag" ] || [ -f "$inputMag.gz" ]; } || fail "ME-GRE magnitude (nifti/gremag.nii) not found in $subjectDir"
+{ [ -f "$inputPha" ] || [ -f "$inputPha.gz" ]; } || fail "ME-GRE phase (nifti/grepha.nii) not found in $subjectDir"
 
 ################################################################################
 # Copy inputs to a local working directory
 CreateWorkingDir "$workingDir"
 
 echo "Copying ME-GRE input to local working directory..."
-cp "$subjectDir"/*ME_GRE_e*.nii.gz "$workingDir"/ 2>/dev/null || fail "could not copy ME-GRE NIfTIs"
-cp "$subjectDir"/*ME_GRE_e*.json   "$workingDir"/ 2>/dev/null
+cp "$niftiDir"/gremag.nii* "$niftiDir"/grepha.nii* "$workingDir"/ 2>/dev/null || fail "could not copy gremag/grepha NIfTIs"
+cp "$niftiDir"/gremag.json "$niftiDir"/grepha.json "$workingDir"/ 2>/dev/null
 # Copy a DTI scan too if one exists (enables the DTI-informed variant)
 if [ -d "$subjectDir/dti" ]; then
     cp -r "$subjectDir/dti" "$workingDir"/dti

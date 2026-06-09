@@ -43,12 +43,12 @@ echo "-- FSL atlases --"
 [ -f "$FSLDIR/data/standard/FSL_HCP1065_FA_1mm.nii.gz" ] && ok "HCP1065 FA atlas" || no "HCP1065 atlas missing - FSL too old?"
 [ -f "$FSLDIR/data/atlases/JHU/JHU-ICBM-labels-1mm.nii.gz" ] && ok "JHU label atlas" || no "JHU atlas missing in FSL"
 
-echo "-- subject inputs (this is the 010-naming check) --"
+echo "-- subject inputs (MUMC 010 layout: nifti/gremag.nii + grepha.nii) --"
 [ -d "$subjectDir" ] && ok "subject dir: $subjectDir" || no "subject dir not found: $subjectDir"
-ls "$subjectDir"/*ME_GRE_e1.nii.gz    >/dev/null 2>&1 && ok "ME-GRE magnitude (*ME_GRE_e1.nii.gz)" || no "ME-GRE magnitude not found - check 010 naming/extension"
-ls "$subjectDir"/*ME_GRE_e1_ph.nii.gz >/dev/null 2>&1 && ok "ME-GRE phase (*ME_GRE_e1_ph.nii.gz)" || no "ME-GRE phase not found - check 010 naming/extension"
-echo "   (actual ME-GRE files in subject dir:)"
-ls "$subjectDir" 2>/dev/null | grep -i "ME_GRE" | sed 's/^/     /' || echo "     (none matched 'ME_GRE')"
+{ ls "$subjectDir"/nifti/gremag.nii* >/dev/null 2>&1; } && ok "ME-GRE magnitude (nifti/gremag.nii)" || no "nifti/gremag.nii not found"
+{ ls "$subjectDir"/nifti/grepha.nii* >/dev/null 2>&1; } && ok "ME-GRE phase (nifti/grepha.nii)" || no "nifti/grepha.nii not found"
+echo "   (actual GRE files in nifti/:)"
+ls "$subjectDir"/nifti 2>/dev/null | grep -iE "gremag|grepha|ME_GRE" | sed 's/^/     /' || echo "     (none matched)"
 
 echo "-- write permission --"
 if touch "$subjectDir/.mimm_writetest" 2>/dev/null; then ok "results dir writable"; rm -f "$subjectDir/.mimm_writetest"; else no "cannot write to $subjectDir"; fi

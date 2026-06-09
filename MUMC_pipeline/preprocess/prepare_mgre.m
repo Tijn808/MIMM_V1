@@ -33,6 +33,68 @@ if ~exist('prefix', 'var')
     prefix = '501';   % adapt per subject, or supply via run_subject.m / run_cohort.sh
 end
 
+%% --- MUMC format (gremag.nii / grepha.nii: pre-stacked 4D, from MUMC 010) ---
+% MUMC's 010_DicomToNifti writes the ME-GRE as two 4D files (all echoes in one),
+% uncompressed, instead of five separate <prefix>-ME_GRE_e<n>.nii.gz echoes.
+% If we see that layout, read it directly and skip the per-echo stacking below.
+mumc_mag = '';
+for c = {'gremag.nii', 'gremag.nii.gz'}
+    if exist(fullfile(data_dir, c{1}), 'file'); mumc_mag = fullfile(data_dir, c{1}); break; end
+end
+if ~isempty(mumc_mag)
+    mumc_pha = '';
+    for c = {'grepha.nii', 'grepha.nii.gz'}
+        if exist(fullfile(data_dir, c{1}), 'file'); mumc_pha = fullfile(data_dir, c{1}); break; end
+    end
+    if isempty(mumc_pha)
+        error('Found %s but no grepha (phase) file in %s.', mumc_mag, data_dir);
+    end
+    fprintf('MUMC format detected: %s + %s\n', mumc_mag, mumc_pha);
+
+    mag_4d = double(niftiread(mumc_mag));
+    pha_4d = double(niftiread(mumc_pha));
+
+    % Apply Philips RWV scaling from the JSON sidecars (same convention as the
+    % per-echo path). One slope per 4D file; for Philips it is constant across
+    % echoes. (MIMM matches the decay *shape*, so a global magnitude scale is
+    % harmless; the phase must end up in radians.)
+    for pair = { {mumc_mag, 'mag'}, {mumc_pha, 'pha'} }
+        f    = pair{1}{1};
+        jf   = regexprep(f, '\.nii(\.gz)?$', '.json');
+        if exist(jf, 'file')
+            j = jsondecode(fileread(jf));
+            if isfield(j, 'PhilipsRWVSlope')
+                s = j.PhilipsRWVSlope; b = 0;
+                if isfield(j, 'PhilipsRWVIntercept'); b = j.PhilipsRWVIntercept; end
+                if strcmp(pair{1}{2}, 'mag'); mag_4d = mag_4d*s + b; else; pha_4d = pha_4d*s + b; end
+            end
+        end
+    end
+    pha_4d = pha_4d / 1000;   % milli-radians -> radians (Philips convention)
+
+    if max(abs(pha_4d(:))) > pi*1.01
+        warning(['Phase outside [-pi,pi] (max |val|=%.3f). Rescaling to [-pi,pi]. ' ...
+                 'Check the Philips phase scaling for this subject.'], max(abs(pha_4d(:))));
+        pha_4d = pha_4d / max(abs(pha_4d(:))) * pi;
+    else
+        disp('Phase range OK: within [-pi, pi] rad.');
+    end
+
+    TE = [6.001 12 18 24 30];   % protocol TEs (ms); QSM/MIMM use their own TE too
+
+    ref = niftiinfo(mumc_mag);
+    ref.Datatype = 'double'; ref.BitsPerPixel = 64;
+    ref.ImageSize = size(mag_4d);
+    pd = ref.PixelDimensions;
+    if numel(pd) < 4; pd = [pd(1:3), 6]; end
+    ref.PixelDimensions = [pd(1:3), TE(2)-TE(1)];
+    niftiwrite(mag_4d, fullfile(subj_dir, 'magnitude.nii.gz'), ref, 'Compressed', true);
+    niftiwrite(pha_4d, fullfile(subj_dir, 'phase.nii.gz'),     ref, 'Compressed', true);
+    fprintf('MUMC prepare done. Shape: %s, phase [%.3f, %.3f] rad\n', ...
+        mat2str(size(mag_4d)), min(pha_4d(:)), max(pha_4d(:)));
+    return
+end
+
 n_echoes  = 5;
 TE        = zeros(1, n_echoes);   % filled from JSON below
 
