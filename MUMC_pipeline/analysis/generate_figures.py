@@ -21,6 +21,13 @@ else:
         raise SystemExit('Copy MUMC_pipeline/analysis/paths_template.py to paths.py and fill in your paths.')
 os.makedirs(out_dir, exist_ok=True)
 
+# QC-only mode (set MIMM_QC_ONLY=1): produce just the per-subject sanity-check
+# figures for a cohort run, and skip the full analysis set. The statistical /
+# cohort figures are built later from each subject's roi_stats.csv.
+QC_FIGS = {'01_anatomy.png', '02_QSM.png', '04_MVF_basic.png',
+           '05_MVF_atlas.png', '12_theta_atlas.png', '13_error.png'}
+QC_ONLY = os.environ.get('MIMM_QC_ONLY') == '1'
+
 def load(path):
     return np.array(nib.load(path).dataobj).astype(np.float32)
 
@@ -135,6 +142,8 @@ def make_comparison_figure(vol1, label1, vol2, label2, title, cmap, vmin, vmax, 
     print(f'Saved: {fname}')
 
 def make_figure(vol, title, cmap, vmin, vmax, unit, mask, fname, bg=None):
+    if QC_ONLY and fname not in QC_FIGS:
+        return
     ax, cor, sag = get_slices(vol, mask)
 
     fig, axes = plt.subplots(1, 3, figsize=(14, 5), facecolor='black')
@@ -265,6 +274,12 @@ make_figure(theta, 'Fibre Angle θ relative to B0', 'hsv',
 # 13. Error map
 make_figure(err, 'MIMM Dictionary Matching Error', 'hot',
             0, 0.01, '-', brain, '13_error.png', bg=mag)
+
+# In QC-only mode, stop here: the comparison / Bland-Altman / consistency figures
+# (14-17, 30) and the ROI analyses are built later, at cohort level.
+if QC_ONLY:
+    print('QC-only mode: 6 sanity figures done (01, 02, 04, 05, 12, 13).')
+    raise SystemExit(0)
 
 # 14. Chi myelin comparison: MIMM vs chi-separation
 make_comparison_figure(

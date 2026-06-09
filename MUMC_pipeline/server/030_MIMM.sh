@@ -133,13 +133,21 @@ echo "4/5 chi-separation + MIMM (MATLAB)..."
 run_matlab "addpath('$MIMM_PIPE'); run_subject('$workingDir','$MIMM_REPO','$CHISEP_DIR',{'chisep','mimm'})" \
     || fail "chi-separation + MIMM step failed"
 
-echo "5/5 ROI stats + figures (Python)..."
+echo "5/5 ROI stats + QC figures (Python)..."
+# Per subject we keep the maps + roi_stats.csv (feeds the cohort figures later)
+# and a small QC figure set only. The full statistical / cohort figures are
+# built separately once all subjects are processed. Set MIMM_FULL_FIGURES=1 to
+# generate the complete per-subject figure set for a single subject instead.
 export MIMM_OUTPUT_DIR="$workingDir"
-python3 "$MIMM_PIPE/analysis/extract_roi_stats.py"     || fail "extract_roi_stats.py failed"
-python3 "$MIMM_PIPE/analysis/generate_figures.py"      || fail "generate_figures.py failed"
-python3 "$MIMM_PIPE/analysis/plot_roi_stats.py"        || fail "plot_roi_stats.py failed"
-python3 "$MIMM_PIPE/analysis/analyse_overestimation.py" || fail "analyse_overestimation.py failed"
-unset MIMM_OUTPUT_DIR
+python3 "$MIMM_PIPE/analysis/extract_roi_stats.py" || fail "extract_roi_stats.py failed"
+if [ "${MIMM_FULL_FIGURES:-0}" = "1" ]; then
+    python3 "$MIMM_PIPE/analysis/generate_figures.py"       || fail "generate_figures.py failed"
+    python3 "$MIMM_PIPE/analysis/plot_roi_stats.py"         || fail "plot_roi_stats.py failed"
+    python3 "$MIMM_PIPE/analysis/analyse_overestimation.py" || fail "analyse_overestimation.py failed"
+else
+    MIMM_QC_ONLY=1 python3 "$MIMM_PIPE/analysis/generate_figures.py" || fail "QC figures failed"
+fi
+unset MIMM_OUTPUT_DIR MIMM_QC_ONLY
 
 ################################################################################
 # End — copy results back to the subject directory, then clean up
