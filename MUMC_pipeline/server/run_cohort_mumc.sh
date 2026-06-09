@@ -1,0 +1,65 @@
+#!/bin/bash
+################################################################################
+# run_cohort_mumc.sh
+#
+# Runs 030_MIMM.sh on every subject that has 010 output (results/<subj>/nifti/
+# gremag.nii), one after another. Sequential on purpose (each subject is a heavy
+# MATLAB/FSL job). Subjects that already have MIMM output are skipped, and a
+# failure on one subject is logged and does not stop the rest.
+#
+# Lives in scripts/ next to 030_MIMM.sh (sources functions.source/project.config).
+#
+# Usage (from scripts/):
+#   sh run_cohort_mumc.sh --dry-run        # list subjects it would process
+#   nohup sh run_cohort_mumc.sh &          # run unattended; progress in cohort_run.log
+#   sh run_cohort_mumc.sh IMPROMYMS_002 IMPROMYMS_004   # only these subjects
+################################################################################
+
+source "$( dirname "$0" )/functions.source" 2>/dev/null
+source "$( dirname "$0" )/project.config"   2>/dev/null
+SELF_DIR=$( dirname "$( readlink -f "$0" )" )
+LOG="$SELF_DIR/cohort_run.log"
+
+# Parse args: --dry-run flag, plus any explicit subject names.
+DRY=0
+explicit=""
+for a in "$@"; do
+    if [ "$a" = "--dry-run" ]; then DRY=1; else explicit="$explicit $a"; fi
+done
+
+# Subject list: explicit args, otherwise every results/<subj>/nifti/gremag.nii*
+if [ -n "$explicit" ]; then
+    subjects="$explicit"
+else
+    subjects=""
+    for f in "$RESULTDIR"/*/nifti/gremag.nii*; do
+        [ -f "$f" ] || continue
+        subjects="$subjects $( basename "$( dirname "$( dirname "$f" )" )" )"
+    done
+    subjects=$( echo "$subjects" | tr ' ' '\n' | sort -u | tr '\n' ' ' )
+fi
+
+if [ -z "$( echo "$subjects" | tr -d ' ' )" ]; then
+    echo "No subjects found (no results/*/nifti/gremag.nii). Has 010 run yet?"
+    exit 1
+fi
+
+echo "Cohort subjects:$subjects"
+if [ "$DRY" = "1" ]; then echo "(dry-run) nothing executed."; exit 0; fi
+
+echo "==== cohort run started $( date ) ====" | tee -a "$LOG"
+for s in $subjects; do
+    if [ -f "$RESULTDIR/$s/mimm/MVF_basic.nii.gz" ]; then
+        echo "[skip] $s (already has MIMM output)" | tee -a "$LOG"
+        continue
+    fi
+    echo "---- $s : start $( date ) ----" | tee -a "$LOG"
+    sh "$SELF_DIR/030_MIMM.sh" "$s"
+    rc=$?
+    if [ "$rc" -eq 0 ]; then
+        echo "---- $s : DONE $( date ) ----" | tee -a "$LOG"
+    else
+        echo "---- $s : FAILED (exit $rc) $( date ) ----" | tee -a "$LOG"
+    fi
+done
+echo "==== cohort run finished $( date ) ====" | tee -a "$LOG"
