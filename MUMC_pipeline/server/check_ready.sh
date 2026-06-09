@@ -16,6 +16,7 @@ source $( dirname "$0" )/project.config   2>/dev/null
 
 subjectName="$1"
 : "${MIMM_REPO:=$SCRIPTDIR/MIMM_V1}"
+: "${CHISEP_DIR:=$SCRIPTDIR/matlab}"
 subjectDir="${RESULTDIR:-.}/$subjectName"
 
 fails=0

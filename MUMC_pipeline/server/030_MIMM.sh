@@ -41,11 +41,12 @@ export FSLOUTPUTTYPE=NIFTI_GZ
 #  Add these to project.config (preferred) or set them here.
 #  - MIMM_REPO  : where the MIMM_V1 repo is cloned (has MIMM_set_path.m +
 #                 MUMC_pipeline/). Defaults to a clone next to the scripts.
-#  - CHISEP_DIR : the Chisep_Toolbox_v1.2.1 directory
+#  - CHISEP_DIR : chi-sep toolbox location (default: the scripts/matlab folder;
+#                 run_QSM_chisep searches it recursively for a working ROMEO)
 #  - MATLAB_BIN : matlab launcher (default: matlab on PATH)
 #  - FSLDIR     : FSL install (normally already set by the FSL environment)
 : "${MIMM_REPO:=$SCRIPTDIR/MIMM_V1}"
-: "${CHISEP_DIR:?ERROR - set CHISEP_DIR (Chisep_Toolbox path) in project.config}"
+: "${CHISEP_DIR:=$SCRIPTDIR/matlab}"
 : "${MATLAB_BIN:=matlab}"
 : "${FSLDIR:?ERROR - FSLDIR is not set (needed for FSL and the atlases)}"
 readonly MIMM_PIPE="$MIMM_REPO/MUMC_pipeline"
