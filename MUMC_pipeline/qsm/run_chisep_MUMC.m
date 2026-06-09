@@ -30,8 +30,34 @@ subj_dir   = input_dir;
 output_dir = chisep_out;
 
 %% --- Toolboxes ---
-
-run(fullfile(chisep_dir, 'setup_toolbox_paths.m'));
+% Same self-configuring logic as run_QSM_chisep.m (kept in sync): use the
+% toolbox's setup script if present, else add everything under chisep_dir and
+% pick the ROMEO build whose binary actually runs on this machine.
+setup_file = fullfile(chisep_dir, 'setup_toolbox_paths.m');
+if exist(setup_file, 'file')
+    run(setup_file);
+else
+    fprintf('setup_toolbox_paths.m not found in %s — auto-configuring.\n', chisep_dir);
+    addpath(genpath(chisep_dir));
+    romeo_ms = dir(fullfile(chisep_dir, '**', 'mritools_*', 'matlab', 'ROMEO.m'));
+    picked = '';
+    for k = 1:numel(romeo_ms)
+        rbin = fullfile(romeo_ms(k).folder, '..', 'bin', 'romeo');
+        if isfile(rbin)
+            [st, ~] = system(sprintf('"%s" --help', rbin));
+            if st == 0
+                addpath(romeo_ms(k).folder);
+                picked = rbin;
+                break;
+            end
+        end
+    end
+    if isempty(picked)
+        error('No working ROMEO binary found under %s (%d build(s) checked).', ...
+               chisep_dir, numel(romeo_ms));
+    end
+    fprintf('Using ROMEO binary: %s\n', picked);
+end
 
 %% --- Acquisition parameters ---
 
