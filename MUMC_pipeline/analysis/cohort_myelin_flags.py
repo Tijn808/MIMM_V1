@@ -51,14 +51,35 @@ M = M.sort_index()
 print(f'Cohort: {M.shape[0]} subjects x {M.shape[1]} ROIs  (metric: {METRIC})')
 M.to_csv(os.path.join(OUT, 'cohort_mvf_matrix.csv'))
 
-# Per-ROI z-score across subjects.
-mu = M.mean(axis=0)
-sd = M.std(axis=0).replace(0, np.nan)
+# Reference for z-scoring: the healthy-control group if >=2 HCs are present
+# (set MIMM_HC="IMPROMYMS_001,IMPROMYMS_005,..."), otherwise the whole cohort.
+# Comparing patients to HCs is the proper way to find demyelination, since the
+# whole-cohort mean is biased low by the patients' own lesions.
+HC = {s.strip() for s in os.environ.get('MIMM_HC', '').split(',') if s.strip()}
+hc_present = [s for s in M.index if s in HC]
+if len(hc_present) >= 2:
+    ref = M.loc[hc_present]
+    ref_label = f'healthy controls (n={len(hc_present)})'
+    flag_subjects = [s for s in M.index if s not in HC]   # flag patients only
+else:
+    ref = M
+    ref_label = 'whole cohort'
+    flag_subjects = list(M.index)
+    if HC:
+        print(f'  Only {len(hc_present)} HC present; need >=2 to compare vs HC. '
+              f'Falling back to whole-cohort reference.')
+print(f'Z-scoring against: {ref_label}')
+if len(hc_present) >= 2 and len(hc_present) < 6:
+    print(f'  NOTE: only {len(hc_present)} HCs — z-score *magnitudes* are rough '
+          f'(small-sample SD); trust the flag and the ranking, not the exact z.')
+
+mu = ref.mean(axis=0)
+sd = ref.std(axis=0).replace(0, np.nan)
 Z  = (M - mu) / sd
 
-# Flag table.
+# Flag table (patients only when an HC reference is used).
 flags = []
-for s in Z.index:
+for s in flag_subjects:
     for r in Z.columns:
         z = Z.loc[s, r]
         if np.isfinite(z) and abs(z) >= Z_THR:
@@ -87,8 +108,9 @@ fig, ax = plt.subplots(figsize=(max(12, M.shape[1] * 0.34), max(5, M.shape[0] * 
                        facecolor='white')
 vlim = max(3.0, np.nanmax(np.abs(Z.values)))
 im = ax.imshow(Z.values, cmap='RdBu', vmin=-vlim, vmax=vlim, aspect='auto')
+ylabels = [f'{s}  (HC)' if s in HC else s for s in M.index]
 ax.set_xticks(range(M.shape[1])); ax.set_xticklabels(M.columns, rotation=90, fontsize=6)
-ax.set_yticks(range(M.shape[0])); ax.set_yticklabels(M.index, fontsize=8)
+ax.set_yticks(range(M.shape[0])); ax.set_yticklabels(ylabels, fontsize=8)
 # mark flagged cells
 for j, r in enumerate(M.columns):
     for i, s in enumerate(M.index):
@@ -96,8 +118,8 @@ for j, r in enumerate(M.columns):
         if np.isfinite(z) and abs(z) >= Z_THR:
             ax.text(j, i, '×', ha='center', va='center', fontsize=7,
                     color='black', fontweight='bold')
-ax.set_title(f'Cohort myelin (MVF atlas) per ROI — z-score vs cohort\n'
-             f'blue = low (lesion candidate), red = high; × = |z| ≥ {Z_THR}',
+ax.set_title(f'Myelin (MVF atlas) per ROI — z-score vs {ref_label}\n'
+             f'red = low (lesion candidate), blue = high; × = |z| ≥ {Z_THR}',
              fontsize=11)
 cb = fig.colorbar(im, ax=ax, fraction=0.015, pad=0.01)
 cb.set_label('z-score (per ROI)', fontsize=9)
