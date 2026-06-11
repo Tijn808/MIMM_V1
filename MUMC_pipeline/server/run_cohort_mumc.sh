@@ -54,9 +54,12 @@ if [ "$DRY" = "1" ]; then echo "(dry-run) nothing executed."; exit 0; fi
 have_gre() { [ -f "$RESULTDIR/$1/nifti/gremag.nii" ] || [ -f "$RESULTDIR/$1/nifti/gremag.nii.gz" ]; }
 
 echo "==== cohort run started $( date ) ====" | tee -a "$LOG"
+# MIMM per-subject pipeline steps, in order. Each consumes the previous output.
+STEPS="030_PrepareQSM 040_Register 050_ChiSep 060_MIMM 070_ROIstats"
+
 for s in $subjects; do
-    if [ -f "$RESULTDIR/$s/mimm/MVF_basic.nii.gz" ]; then
-        echo "[skip] $s (already has MIMM output)" | tee -a "$LOG"
+    if [ -f "$RESULTDIR/$s/analysis/roi_stats.csv" ]; then
+        echo "[skip] $s (already processed)" | tee -a "$LOG"
         continue
     fi
     # Convert DICOM -> NIfTI first if this subject has not been converted yet.
@@ -69,12 +72,14 @@ for s in $subjects; do
         continue
     fi
     echo "---- $s : MIMM start $( date ) ----" | tee -a "$LOG"
-    sh "$SELF_DIR/030_MIMM.sh" "$s"
-    rc=$?
+    rc=0
+    for step in $STEPS; do
+        sh "$SELF_DIR/${step}.sh" "$s" || { rc=$?; echo "   failed at $step" | tee -a "$LOG"; break; }
+    done
     if [ "$rc" -eq 0 ]; then
         echo "---- $s : DONE $( date ) ----" | tee -a "$LOG"
     else
-        echo "---- $s : FAILED (exit $rc) $( date ) ----" | tee -a "$LOG"
+        echo "---- $s : FAILED at $step (exit $rc) $( date ) ----" | tee -a "$LOG"
     fi
 done
 echo "==== cohort run finished $( date ) ====" | tee -a "$LOG"

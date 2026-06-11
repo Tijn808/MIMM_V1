@@ -37,14 +37,23 @@ end
 % MUMC's 010_DicomToNifti writes the ME-GRE as two 4D files (all echoes in one),
 % uncompressed, instead of five separate <prefix>-ME_GRE_e<n>.nii.gz echoes.
 % If we see that layout, read it directly and skip the per-echo stacking below.
+% Look both in data_dir and in data_dir/nifti (010 writes into a nifti/ subdir).
 mumc_mag = '';
-for c = {'gremag.nii', 'gremag.nii.gz'}
-    if exist(fullfile(data_dir, c{1}), 'file'); mumc_mag = fullfile(data_dir, c{1}); break; end
+for dd = {data_dir, fullfile(data_dir, 'nifti')}
+    for c = {'gremag.nii', 'gremag.nii.gz'}
+        f = fullfile(dd{1}, c{1});
+        if exist(f, 'file'); mumc_mag = f; break; end
+    end
+    if ~isempty(mumc_mag); break; end
 end
 if ~isempty(mumc_mag)
     mumc_pha = '';
-    for c = {'grepha.nii', 'grepha.nii.gz'}
-        if exist(fullfile(data_dir, c{1}), 'file'); mumc_pha = fullfile(data_dir, c{1}); break; end
+    for dd = {data_dir, fullfile(data_dir, 'nifti')}
+        for c = {'grepha.nii', 'grepha.nii.gz'}
+            f = fullfile(dd{1}, c{1});
+            if exist(f, 'file'); mumc_pha = f; break; end
+        end
+        if ~isempty(mumc_pha); break; end
     end
     if isempty(mumc_pha)
         error('Found %s but no grepha (phase) file in %s.', mumc_mag, data_dir);

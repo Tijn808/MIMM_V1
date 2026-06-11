@@ -1,6 +1,6 @@
 #!/bin/bash
 ################################################################################
-# 040_cohort.sh - cohort-level analysis across all processed subjects.
+# 080_cohort.sh - cohort-level analysis across all processed subjects.
 #
 # Run once after the cohort is processed (every results/<subj> has
 # analysis/roi_stats.csv). Currently: myelin-per-ROI overview with outlier
@@ -13,7 +13,7 @@
 #   cohort_mvf_flagcount.png        low-myelin flags per subject
 #   cohort_mvf_matrix.csv           raw subject x ROI MVF table
 #
-# Usage (from scripts/):  sh 040_cohort.sh
+# Usage (from scripts/):  sh 080_cohort.sh
 ################################################################################
 
 source "$( dirname "$0" )/functions.source" 2>/dev/null
