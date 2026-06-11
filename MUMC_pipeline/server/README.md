@@ -1,18 +1,25 @@
 # Deploying the MIMM pipeline into the MUMC numbered pipeline
 
 The MIMM processing is split into numbered steps that follow the MUMC template
-(`000_scriptTemplate.sh`). Each step takes `<subjectName>`, reads the previous
-step's output from `results/<subject>/`, and writes its own there.
+(`000_scriptTemplate.sh`): each takes `<subjectName>`, sources
+`functions.source`/`project.config`, logs with `HeaderLog`, checks its inputs
+with `CheckFilesExist`, then `CreateWorkingDir` → process locally → copy results
+back to `results/<subject>/` → `GarbageCleanUp`. Every step's output is the next
+step's input.
+
+(One adaptation to the template: our outputs are whole folders — `qsm/`,
+`atlas/`, `mimm/`, … — so the folder copy in/out uses `cp -r` instead of the
+file-only `CopyFilesToDir`, and `FSLOUTPUTTYPE` is `NIFTI_GZ`, not `NIFTI`.)
 
 ## The steps
 
-| Step | Script | In | Out |
-|------|--------|----|-----|
-| 030 | `030_PrepareQSM.sh` | `nifti/gremag.nii`, `grepha.nii` (from 010) | `qsm/` |
-| 040 | `040_Register.sh` | `qsm/mag_e1` | `atlas/` (+ `dti/` if a DTI scan exists) |
-| 050 | `050_ChiSep.sh` | `qsm/` | `chisep/` |
-| 060 | `060_MIMM.sh` | `qsm/` + `atlas/` | `mimm/` |
-| 070 | `070_ROIstats.sh` | `mimm/` + `atlas/` + `chisep/` | `analysis/roi_stats.csv`, `figures/` (6 QC) |
+| Step | Script | Reads | Writes |
+|------|--------|-------|--------|
+| 030 | `030_PrepareQSM.sh` | `nifti/gremag.nii`,`grepha.nii` (010) | `magnitude.nii.gz`,`phase.nii.gz`,`qsm/` |
+| 040 | `040_Register.sh` | `qsm/mag_e1`,`brain_mask` | `atlas/` (+`dti/` if a DTI scan exists) |
+| 050 | `050_ChiSep.sh` | `magnitude.nii.gz`,`phase.nii.gz` | `chisep/` |
+| 060 | `060_MIMM.sh` | `magnitude.nii.gz`,`qsm/`,`atlas/` | `mimm/` |
+| 070 | `070_ROIstats.sh` | `mimm/`,`atlas/`,`chisep/`,`qsm/` | `analysis/roi_stats.csv`,`figures/` (6 QC) |
 | 080 | `080_cohort.sh` | all `analysis/roi_stats.csv` | `cohort_analysis/` |
 
 `010` (DICOM→NIfTI) and `020` (MWF) are MUMC's own steps and run before these.

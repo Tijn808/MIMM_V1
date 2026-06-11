@@ -1,44 +1,95 @@
 #!/bin/bash
 ################################################################################
-# 040_Register.sh - register the HCP1065/JHU atlases into subject space.
+# Script properties
 #
-# MIMM pipeline step 2. Output feeds 060 (MIMM).
-#   IN : results/<subj>/qsm/mag_e1.nii.gz, brain_mask.nii.gz   (from 030)
-#   OUT: results/<subj>/atlas/  (FA_atlas, theta_atlas, JHU labels/tracts)
-#        (+ results/<subj>/dti/  if a DTI scan is present)
-#
-# Usage (from scripts/):  sh 040_Register.sh <subjectName>
+# Name        : 040_Register.sh
+# Description : Register the HCP1065/JHU atlases into subject space (MIMM step 2).
+# Arguments   : subjectName
+# Exit code   : 0 if successfully executed, !0 if there was an error
 ################################################################################
-source "$( dirname "$0" )/functions.source" 2>/dev/null
-source "$( dirname "$0" )/project.config"   2>/dev/null
-readonly SCRIPTNAME=$( basename "$( readlink -f "$0" )" )
+
+################################################################################
+# Version History
+#
+# 20260611 1.0 Tijn Saes   MIMM pipeline step 2 (atlas registration)
+################################################################################
+
+################################################################################
+# Includes
+source $( dirname "$0" )/functions.source
+source $( dirname "$0" )/project.config
+
+################################################################################
+# Constants
+readonly SCRIPTNAME=$( basename $( readlink -f "$0" ) )
 readonly SCRIPTVERSION=1.0
 export FSLOUTPUTTYPE=NIFTI_GZ
 
 : "${MIMM_REPO:=$SCRIPTDIR/MIMM_V1}"
-: "${FSLDIR:?ERROR - FSLDIR is not set}"
 readonly MIMM_PIPE="$MIMM_REPO/MUMC_pipeline"
-export FSLDIR
-export PATH="$FSLDIR/bin:$PATH"
 
+################################################################################
+# Variables
 subjectName="$1"
-subjectDir="$RESULTDIR/$subjectName"
+logFile="$LOGDIR"/"$subjectName".log
+subjectDir="$RESULTDIR"/"$subjectName"
+workingDir=~/"$PROJECTNAME"/"$subjectName"
 
+inputFileList=( qsm/mag_e1.nii.gz qsm/brain_mask.nii.gz )   # checked with CheckFilesExist
+outputList=( atlas )                                        # (+ dti/ if a DTI scan exists)
+
+################################################################################
+# Start
 HeaderLog "START" "$SCRIPTDIR"/"$SCRIPTNAME" "$SCRIPTVERSION"
-fail() { echo "ERROR - $1"; HeaderLog "END" "$SCRIPTDIR"/"$SCRIPTNAME" "$SCRIPTVERSION"; exit 1; }
 
-[ -n "$subjectName" ] || fail "no subjectName (usage: $SCRIPTNAME <subjectName>)"
-[ -f "$subjectDir/qsm/mag_e1.nii.gz" ] || fail "qsm/mag_e1.nii.gz not found (run 030 first)"
+echo "Project       : ""$PROJECTNAME"
+echo " - results     : ""$RESULTDIR"
+echo " - subject     : ""$subjectName"
+echo " - working dir : ""$workingDir"
 
-echo "[040] atlas registration: $subjectName"
-bash "$MIMM_PIPE/atlas/register_atlas.sh" "$subjectDir" || fail "atlas registration failed"
-
-if [ -f "$subjectDir/dti/dti.nii.gz" ]; then
-    echo "[040] DTI preprocessing: $subjectName"
-    bash "$MIMM_PIPE/preprocess/preprocess_dti.sh" "$subjectDir" || fail "DTI preprocessing failed"
-else
-    echo "[040] no dti/dti.nii.gz - using atlas orientation"
+if [ ! -d "$subjectDir" ]; then
+    echo "ERROR - subject directory not found: $subjectDir"
+    HeaderLog "END" "$SCRIPTDIR"/"$SCRIPTNAME" "$SCRIPTVERSION"
+    exit 1
 fi
 
+CheckFilesExist ${inputFileList[@]/#/"$subjectDir"/}
+if [ $? -ne 0 ]; then
+    echo "ERROR - missing input files (run 030 first)"
+    HeaderLog "END" "$SCRIPTDIR"/"$SCRIPTNAME" "$SCRIPTVERSION"
+    exit 1
+fi
+
+# Create local working directory and copy the qsm/ folder (+ dti/ if present) in
+CreateWorkingDir "$workingDir"
+echo "Copying input from subject directory to local working directory..."
+cp -r "$subjectDir"/qsm "$workingDir"/qsm
+[ -d "$subjectDir"/dti ] && cp -r "$subjectDir"/dti "$workingDir"/dti
+
+################################################################################
+# Actual image processing part
+echo "Running atlas registration..."
+bash "$MIMM_PIPE/atlas/register_atlas.sh" "$workingDir"
+if [ $? -ne 0 ]; then
+    echo "ERROR - atlas registration failed"
+    GarbageCleanUp "$workingDir"
+    HeaderLog "END" "$SCRIPTDIR"/"$SCRIPTNAME" "$SCRIPTVERSION"
+    exit 1
+fi
+
+if [ -f "$workingDir"/dti/dti.nii.gz ]; then
+    echo "Running DTI preprocessing..."
+    bash "$MIMM_PIPE/preprocess/preprocess_dti.sh" "$workingDir"
+    [ $? -eq 0 ] && outputList=( atlas dti )
+fi
+
+################################################################################
+# End - copy output back to the subject directory and clean up
+echo "Copying output from local working directory to subject directory..."
+for o in "${outputList[@]}"; do
+    rm -rf "$subjectDir"/"$o"
+    cp -r "$workingDir"/"$o" "$subjectDir"/"$o"
+done
+GarbageCleanUp "$workingDir"
 HeaderLog "END" "$SCRIPTDIR"/"$SCRIPTNAME" "$SCRIPTVERSION"
 exit 0
