@@ -14,12 +14,15 @@
 cd "$( dirname "$0" )" || exit 1
 source ./project.config 2>/dev/null
 
-# Limit each MATLAB to ONE thread so many can run in parallel without
-# oversubscribing the CPU. MATLAB does its math via Intel MKL, whose threads are
-# NOT limited by OMP_NUM_THREADS -- MKL_NUM_THREADS is needed too (per Gerald).
+# Cap each MATLAB's thread count so the parallel jobs fill the cores without
+# oversubscribing. MATLAB does its math via Intel MKL, whose threads are NOT
+# limited by OMP_NUM_THREADS -- MKL_NUM_THREADS is the lever (per Gerald).
+# 1 thread = no oversubscription but ~10 h/subject (too slow); the natural ~7
+# threads x 8 jobs oversubscribed a 64-core box. Middle ground: 8 threads each,
+# so e.g. 6 parallel ~= 48 cores, leaving headroom for other users.
 # These exports propagate through parallel_execute -> screen -> 020 -> matlab.
-export OMP_NUM_THREADS=1
-export MKL_NUM_THREADS=1
+export OMP_NUM_THREADS=8
+export MKL_NUM_THREADS=8
 
 N="${1:-4}"
 shift 2>/dev/null
