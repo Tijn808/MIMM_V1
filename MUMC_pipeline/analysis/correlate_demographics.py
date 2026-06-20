@@ -47,7 +47,8 @@ for f in sorted(glob.glob(os.path.join(results_dir, '*', 'analysis', 'roi_stats.
     r = pd.read_csv(f)
     rows.append({'id': sid,
                  'MVF_atlas': float(np.nanmean(r['MVF_atlas_mean'])),
-                 'MVF_basic': float(np.nanmean(r['MVF_basic_mean']))})
+                 'MVF_basic': float(np.nanmean(r['MVF_basic_mean'])),
+                 'chi_pos':   float(np.nanmean(r['chi_pos_chisep_mean']))})  # iron (chi+)
 mvf = pd.DataFrame(rows)
 if mvf.empty:
     sys.exit(f'No roi_stats.csv found under {results_dir}')
@@ -57,8 +58,8 @@ df['group'] = np.where(df['id'].isin(HC), 'HC', 'patient')
 df.to_csv(os.path.join(out_dir, 'demographics_mvf.csv'), index=False)
 print(f'Merged {len(df)} subjects (of {len(mvf)} with MIMM, {len(demo)} in demographics)')
 
-# --- figure: MVF vs age (left) + MVF by sex (right) ---
-fig, (axA, axB) = plt.subplots(1, 2, figsize=(11, 5))
+# --- figure: MVF vs age, MVF by sex, iron (chi+) vs age ---
+fig, (axA, axB, axC) = plt.subplots(1, 3, figsize=(15, 5))
 
 # MVF vs age
 for grp, col, mk in [('patient', '#1f77b4', 'o'), ('HC', '#2ca02c', 's')]:
@@ -92,10 +93,27 @@ if len(groups) == 2:
              bbox=dict(boxstyle='round', fc='white', ec='0.7'))
 axB.set_ylabel('MVF (Atlas), WM mean'); axB.set_title('Myelin by sex'); axB.grid(alpha=0.25)
 
-fig.suptitle('MIMM myelin vs demographics', fontsize=12)
+# iron (chi+) vs age — iron is expected to accumulate with age
+for grp, col, mk in [('patient', '#d62728', 'o'), ('HC', '#2ca02c', 's')]:
+    g = df[df['group'] == grp]
+    axC.scatter(g['age'], g['chi_pos'], c=col, marker=mk, s=40, label=grp, alpha=0.8)
+xi, yi = df['age'].values, df['chi_pos'].values
+mi = np.isfinite(xi) & np.isfinite(yi)
+ri, pi = stats.pearsonr(xi[mi], yi[mi])
+bi, ai = np.polyfit(xi[mi], yi[mi], 1)
+xs2 = np.linspace(xi[mi].min(), xi[mi].max(), 100)
+axC.plot(xs2, bi * xs2 + ai, 'k--', lw=1.3)
+axC.text(0.04, 0.94, f'r = {ri:.2f}, ' + ('p < 0.001' if pi < 1e-3 else f'p = {pi:.3f}'),
+         transform=axC.transAxes, va='top', fontsize=10,
+         bbox=dict(boxstyle='round', fc='white', ec='0.7'))
+axC.set_xlabel('Age (years)'); axC.set_ylabel('chi+ (iron), WM mean (ppm)')
+axC.set_title('Iron vs age'); axC.legend(); axC.grid(alpha=0.25)
+
+fig.suptitle('MIMM/chi-sep vs demographics', fontsize=12)
 fig.tight_layout(rect=[0, 0, 1, 0.96])
 out = os.path.join(out_dir, 'mvf_vs_demographics.png')
 fig.savefig(out, dpi=150)
 print(f'MVF vs age:  r = {r:.3f}, p = {p:.4g}')
+print(f'Iron vs age: r = {ri:.3f}, p = {pi:.4g}')
 print(f'saved: {out}')
 print(f'table: {os.path.join(out_dir, "demographics_mvf.csv")}')
