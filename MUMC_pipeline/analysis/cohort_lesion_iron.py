@@ -31,18 +31,26 @@ out_dir = os.path.join(results_dir, 'cohort_analysis'); os.makedirs(out_dir, exi
 def load(p):
     return np.asarray(nib.load(p).dataobj) if os.path.exists(p) else None
 
+masks = sorted(glob.glob(os.path.join(results_dir, '*', 'lesion', 'lesion_mask.nii.gz')))
+print(f'Found {len(masks)} lesion masks under {results_dir}')
+
 rows = []
-for ld in sorted(glob.glob(os.path.join(results_dir, '*', 'lesion', 'lesion_mask.nii.gz'))):
+n_have_chipos = 0
+for ld in masks:
     d = os.path.dirname(os.path.dirname(ld)); sid = os.path.basename(d)
     lesion = load(ld); brain = load(os.path.join(d, 'qsm', 'brain_mask.nii.gz'))
     fa = load(os.path.join(d, 'atlas', 'FA_atlas.nii.gz'))
     chi_pos = load(os.path.join(d, 'chisep', 'chi_pos.nii.gz'))
-    if any(v is None for v in (lesion, brain, fa, chi_pos)):
-        print(f'[skip] {sid} (missing input)'); continue
+    # report exactly which input is missing (so a global skip is diagnosable)
+    missing = [name for name, v in (('lesion', lesion), ('brain', brain),
+                                    ('FA_atlas', fa), ('chi_pos', chi_pos)) if v is None]
+    if missing:
+        print(f'[skip] {sid} (missing: {", ".join(missing)})'); continue
+    n_have_chipos += 1
     lesion = (lesion > 0.5) & (brain > 0)
-    if lesion.sum() < 100:
-        print(f'[skip] {sid} ({int(lesion.sum())} lesion vox)'); continue
-    core = ndimage.binary_erosion(lesion, iterations=2)
+    if lesion.sum() < 50:                       # match cohort_lesion.py threshold
+        print(f'[skip] {sid} ({int(lesion.sum())} lesion vox < 50)'); continue
+    core = ndimage.binary_erosion(lesion, iterations=1)   # 1-voxel rim (2 was too aggressive)
     rim  = lesion & ~core
     nawm = (brain > 0) & (fa > 0.20) & ~lesion
     chi_pos = chi_pos.astype(float)
@@ -52,14 +60,15 @@ for ld in sorted(glob.glob(os.path.join(results_dir, '*', 'lesion', 'lesion_mask
         return float(np.mean(v)) if v.size else np.nan
 
     if core.sum() < 20:
-        print(f'[skip] {sid} (core too small)'); continue
+        print(f'[skip] {sid} (eroded core {int(core.sum())} vox < 20)'); continue
     r = {'subject': sid, 'rim': mean_in(rim), 'core': mean_in(core), 'nawm': mean_in(nawm),
          'n_rim': int(rim.sum()), 'n_core': int(core.sum())}
     rows.append(r)
     print(f'{sid}: chi+ rim {r["rim"]:.4f}  core {r["core"]:.4f}  NAWM {r["nawm"]:.4f}')
 
+print(f'\n{n_have_chipos}/{len(masks)} subjects had all inputs; {len(rows)} usable after size filters.')
 if not rows:
-    sys.exit('No subjects with usable lesions.')
+    sys.exit('No subjects with usable lesions (see per-subject reasons above).')
 n = len(rows)
 
 rim  = np.array([r['rim'] for r in rows]); core = np.array([r['core'] for r in rows])
