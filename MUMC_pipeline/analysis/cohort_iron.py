@@ -85,6 +85,9 @@ fig.savefig(os.path.join(out_dir, 'cohort_chi_offset.png'), dpi=150)
 for label, mimm_c, cs_c in CHANNELS:
     x = df[cs_c].values; y = df[mimm_c].values
     m = np.isfinite(x) & np.isfinite(y); x, y = x[m], y[m]
-    r, _ = stats.pearsonr(x, y); bias = (y - x).mean()
-    print(f'{label}: r = {r:.3f},  offset (MIMM-chisep) = {bias:+.4f} ppm  (n={len(x)} ROIs)')
+    r, _ = stats.pearsonr(x, y); diff = y - x; bias = diff.mean()
+    mean_ba = (x + y) / 2
+    ba_slope, _ = np.polyfit(mean_ba, diff, 1)
+    print(f'{label}: r = {r:.3f},  bias = {bias:+.4f} ppm,  '
+          f'BA slope = {ba_slope:+.3f} ppm/ppm  (n={len(x)} ROIs)')
 print(f'saved figures to {out_dir}')
