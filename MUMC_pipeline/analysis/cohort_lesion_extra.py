@@ -44,8 +44,8 @@ for ld in sorted(glob.glob(os.path.join(results_dir, '*', 'lesion', 'lesion_mask
     if any(v is None for v in (lesion, brain, fa)):
         print(f'[skip] {sid} (missing input)'); continue
     lesion = (lesion > 0.5) & (brain > 0)
-    if lesion.sum() < 100:
-        print(f'[skip] {sid} ({int(lesion.sum())} vox)'); continue
+    if lesion.sum() < 50:                       # match cohort_lesion.py threshold
+        print(f'[skip] {sid} ({int(lesion.sum())} lesion vox < 50)'); continue
     eroded = ndimage.binary_erosion(lesion, iterations=1)   # drop 1-voxel rim
     nawm = (brain > 0) & (fa > 0.20) & ~lesion
     zooms = nib.load(ld).header.get_zooms()[:3]

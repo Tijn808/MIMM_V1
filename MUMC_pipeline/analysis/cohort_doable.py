@@ -56,9 +56,36 @@ def scatter(ax, x, y, xlabel, ylabel, title):
     return r, p
 
 # ============ 1. Cross-method validation ============
+# Two correlation regimes, reported for an honest comparison with the MWF result:
+#   - cohort-mean: average each ROI over subjects first (~50 points). Within-subject
+#     noise is averaged out, so r is high but NOT comparable to a per-ROI r.
+#   - per-ROI pooled: every subject x ROI is its own point (matches cohort_mwf.py),
+#     so this r IS directly comparable to the MVF-vs-MWF r.
+def pearson(x, y):
+    m = np.isfinite(x) & np.isfinite(y)
+    return stats.pearsonr(x[m], y[m])[0], int(m.sum())
+
+r_chi_atlas_pool, n_pool = pearson(long['chi_neg_abs'].values, long['MVF_atlas_mean'].values)
+r_chi_basic_pool, _      = pearson(long['chi_neg_abs'].values, long['MVF_basic_mean'].values)
+r_fa_pool, _             = pearson(long['FA_mean'].values,     long['MVF_atlas_mean'].values)
+
 fig, (a1, a2) = plt.subplots(1, 2, figsize=(11, 5))
-r_chi, _ = scatter(a1, roi['chi_neg_abs'].values, roi['MVF_atlas_mean'].values,
-                   '|χ⁻| chi-separation (ppm)', 'MVF (Atlas)', 'MIMM vs chi-separation')
+# chi panel: both Basic and Atlas series on the cohort-mean ROIs
+xb = roi['chi_neg_abs'].values
+for yc, col, lab in [('MVF_basic_mean', '#ff7f0e', 'Basic'),
+                     ('MVF_atlas_mean', '#1f77b4', 'Atlas')]:
+    y = roi[yc].values; m = np.isfinite(xb) & np.isfinite(y)
+    a1.scatter(xb[m], y[m], s=26, c=col, alpha=0.75, edgecolors='none', label=lab)
+    b, a = np.polyfit(xb[m], y[m], 1); xs = np.linspace(xb[m].min(), xb[m].max(), 100)
+    a1.plot(xs, b * xs + a, '--', color=col, lw=1.2)
+r_chi, _       = pearson(xb, roi['MVF_atlas_mean'].values)   # cohort-mean ROIs
+r_chi_basic, _ = pearson(xb, roi['MVF_basic_mean'].values)
+a1.text(0.04, 0.94, f'Atlas r = {r_chi:.2f}\nBasic r = {r_chi_basic:.2f}\n'
+        f'(cohort-mean ROIs)\nper-ROI pooled r = {r_chi_atlas_pool:.2f}',
+        transform=a1.transAxes, va='top', fontsize=9,
+        bbox=dict(boxstyle='round', fc='white', ec='0.7'))
+a1.set_xlabel('|χ⁻| chi-separation (ppm)'); a1.set_ylabel('MVF')
+a1.set_title('MIMM vs chi-separation'); a1.legend(loc='lower right'); a1.grid(alpha=0.25)
 r_fa, _ = scatter(a2, roi['FA_mean'].values, roi['MVF_atlas_mean'].values,
                   'FA', 'MVF (Atlas)', 'MIMM vs FA')
 fig.suptitle(f'Cross-method validation, per JHU WM ROI  (cohort n={nsub})', fontsize=12)
@@ -106,8 +133,12 @@ fig.tight_layout()
 fig.savefig(os.path.join(out_dir, 'cohort_patient_vs_hc.png'), dpi=150)
 
 # ---- summary ----
-print(f'MVF vs |chi-neg|:  r = {r_chi:.3f}')
-print(f'MVF vs FA:         r = {r_fa:.3f}')
+print(f'MVF(Atlas) vs |chi-neg|, cohort-mean ROIs : r = {r_chi:.3f}  (n={roi.shape[0]} ROIs)')
+print(f'MVF(Basic) vs |chi-neg|, cohort-mean ROIs : r = {r_chi_basic:.3f}')
+print(f'MVF(Atlas) vs |chi-neg|, per-ROI pooled   : r = {r_chi_atlas_pool:.3f}  (n={n_pool} subj*ROI)'
+      f'   <-- compare with MVF-vs-MWF r')
+print(f'MVF(Basic) vs |chi-neg|, per-ROI pooled   : r = {r_chi_basic_pool:.3f}')
+print(f'MVF vs FA, cohort-mean ROIs : r = {r_fa:.3f}  (per-ROI pooled r = {r_fa_pool:.3f})')
 print(f'Basic-Atlas mean overestimation: {md:+.4f} ({100*md/roi["MVF_atlas_mean"].mean():+.1f}%)')
 if len(hc) >= 2 and len(pat) >= 2:
     print(f'Patient {np.mean(pat):.3f} vs HC {np.mean(hc):.3f}  (t-test p={pt:.3g})')
