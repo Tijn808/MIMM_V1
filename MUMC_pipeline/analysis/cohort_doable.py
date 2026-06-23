@@ -107,7 +107,7 @@ b1.text(0.04, 0.94, f'mean Basic−Atlas = {md:+.3f}\n({100*md/roi["MVF_atlas_me
         transform=b1.transAxes, va='top', fontsize=10,
         bbox=dict(boxstyle='round', fc='white', ec='0.7'))
 # overestimation vs theta
-scatter(b2, roi['theta_mean'].values, roi['overest'].values,
+r_theta, _ = scatter(b2, roi['theta_mean'].values, roi['overest'].values,
         'θ  fibre angle to B0 (deg)', 'MVF Basic − Atlas', 'Orientation-driven overestimation')
 fig.suptitle(f'Orientation effect: Basic vs Atlas  (cohort n={nsub})', fontsize=12)
 fig.tight_layout(rect=[0, 0, 1, 0.95])
@@ -140,6 +140,7 @@ print(f'MVF(Atlas) vs |chi-neg|, per-ROI pooled   : r = {r_chi_atlas_pool:.3f}  
 print(f'MVF(Basic) vs |chi-neg|, per-ROI pooled   : r = {r_chi_basic_pool:.3f}')
 print(f'MVF vs FA, cohort-mean ROIs : r = {r_fa:.3f}  (per-ROI pooled r = {r_fa_pool:.3f})')
 print(f'Basic-Atlas mean overestimation: {md:+.4f} ({100*md/roi["MVF_atlas_mean"].mean():+.1f}%)')
+print(f'(Basic-Atlas) vs theta:  r = {r_theta:.3f}   (orientation-driven)')
 if len(hc) >= 2 and len(pat) >= 2:
     print(f'Patient {np.mean(pat):.3f} vs HC {np.mean(hc):.3f}  (t-test p={pt:.3g})')
 print(f'figures saved to {out_dir}')
