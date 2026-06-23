@@ -7,7 +7,7 @@
 #   FA_atlas.nii.gz        FA map in subject space
 #   V1_atlas.nii.gz        Principal eigenvector [x y z] in subject space
 #   theta_atlas.nii.gz     Fibre angle relative to B0 (degrees) in subject space
-#   JHU_labels_subj.nii.gz JHU ICBM-DTI-81 WM labels in subject space (48 labels)
+#   JHU_labels_subj.nii.gz JHU ICBM-DTI-81 WM labels in subject space (50 labels)
 #
 # Usage: bash register_atlas.sh <subj_dir>
 #   subj_dir must contain:
@@ -97,7 +97,7 @@ echo "Computing theta map..."
 rm -f "${OUT}"/V1_comp_000*.nii.gz "${OUT}/V1_z_abs.nii.gz"
 
 # --- Step 8: warp JHU ICBM-DTI-81 labels to subject space ---
-echo "Warping JHU ICBM-DTI-81 labels (48 ROIs) to subject space..."
+echo "Warping JHU ICBM-DTI-81 labels (50 ROIs) to subject space..."
 "$FSL/applywarp" \
     -i "${ATLASDIR}/JHU/JHU-ICBM-labels-1mm.nii.gz" \
     -r "$MAG_E1" \
@@ -116,6 +116,6 @@ echo "Warping JHU tractography atlas (20 tracts, thr25) to subject space..."
 
 echo "Done. Atlas outputs written to: ${OUT}"
 echo "  FA_atlas.nii.gz  V1_atlas.nii.gz  theta_atlas.nii.gz"
-echo "  JHU_labels_subj.nii.gz (48 DTI-81 ROIs)"
+echo "  JHU_labels_subj.nii.gz (50 DTI-81 ROIs)"
 echo "  JHU_tracts_subj.nii.gz (20 tractography tracts, thr25)"
 echo "  JHU_labels_subj.nii.gz"

@@ -3,7 +3,7 @@
 Exploratory iron-rim analysis in MS lesions (paramagnetic-rim-lesion idea).
 
 For every subject with a registered lesion mask, splits each subject's lesion
-voxels into a RIM (outer 2-voxel shell) and a CORE (interior), and compares the
+voxels into a RIM (outer 1-voxel shell) and a CORE (interior), and compares the
 chi-separation iron map (chi_pos) in rim vs core vs NAWM. Chronic active
 (paramagnetic-rim) lesions carry iron at the edge, so a rim > core difference is
 the signal of interest.
