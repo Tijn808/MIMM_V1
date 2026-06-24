@@ -56,14 +56,22 @@ for ld in sorted(glob.glob(os.path.join(results_dir, '*', 'lesion', 'lesion_mask
     if peri.sum() < MIN_VOX:
         print(f'[skip] {sid} (peri shell {int(peri.sum())} vox)'); continue
     r = {'subject': sid}
+    loaded = {}
     for label, rel in MAPS:
         vol = load(os.path.join(d, rel))
+        loaded[label] = vol.astype(float) if vol is not None else None
         if vol is None:
             r[label] = (np.nan, np.nan, np.nan); continue
-        vol = vol.astype(float)
-        def mean(m):
-            v = vol[m]; v = v[np.isfinite(v)]; return float(np.mean(v)) if v.size else np.nan
+        vol = loaded[label]
+        def mean(m, v=vol):
+            x = v[m]; x = x[np.isfinite(x)]; return float(np.mean(x)) if x.size else np.nan
         r[label] = (mean(nawm), mean(lesion), mean(peri))   # (global NAWM, lesion, peri)
+    # AVF = FVF - MVF (axon volume fraction): the demyelination-vs-axon-loss test
+    if loaded.get('MVF') is not None and loaded.get('FVF') is not None:
+        avf = loaded['FVF'] - loaded['MVF']
+        def amean(m):
+            x = avf[m]; x = x[np.isfinite(x)]; return float(np.mean(x)) if x.size else np.nan
+        r['AVF (axon)'] = (amean(nawm), amean(lesion), amean(peri))
     rows.append(r)
     print(f'{sid}: MVF {r["MVF"][1]:.3f} (NAWM {r["MVF"][0]:.3f}), '
           f'FVF {r["FVF"][1]:.3f} (NAWM {r["FVF"][0]:.3f})')
@@ -85,10 +93,14 @@ def paired(les, ref):
     return pct, float(p), float(d), int(m.sum())
 
 summary = []
-for label, _ in MAPS:
-    glob = np.array([r[label][0] for r in rows])
-    les  = np.array([r[label][1] for r in rows])
-    peri = np.array([r[label][2] for r in rows])
+STATS_MAPS = [m[0] for m in MAPS] + ['AVF (axon)']
+for label in STATS_MAPS:
+    if not any(label in r for r in rows):
+        continue
+    nan3 = (np.nan, np.nan, np.nan)
+    glob = np.array([r.get(label, nan3)[0] for r in rows])
+    les  = np.array([r.get(label, nan3)[1] for r in rows])
+    peri = np.array([r.get(label, nan3)[2] for r in rows])
     pg, pg_p, dg, _ = paired(les, glob)
     pp, pp_p, dp, n_ok = paired(les, peri)
     summary.append({'map': label, 'global_pct': round(pg, 1), 'global_p': pg_p, 'global_d': round(dg, 2),
@@ -105,16 +117,22 @@ for s in summary:
     print(f'{s["map"]:14s} {s["global_pct"]:>6.1f}% {s["global_p"]:>9.3g}{star_g}{s["global_d"]:>6.2f}   '
           f'{s["peri_pct"]:>6.1f}% {s["peri_p"]:>9.3g}{star_p}{s["peri_d"]:>6.2f}')
 
-# --- demyelination vs axon-loss readout ---
-mvf = next(s for s in summary if s['map'] == 'MVF')
-fvf = next(s for s in summary if s['map'] == 'FVF')
+# --- demyelination vs axon-loss readout (uses AVF = FVF - MVF directly) ---
+mvf = next((s for s in summary if s['map'] == 'MVF'), None)
+avf = next((s for s in summary if s['map'] == 'AVF (axon)'), None)
 print('\n--- Demyelination vs axon loss (perilesional, location-matched) ---')
-print(f'  MVF {mvf["peri_pct"]:+.1f}% (p={mvf["peri_p"]:.3g}),  FVF {fvf["peri_pct"]:+.1f}% (p={fvf["peri_p"]:.3g})')
-if fvf['peri_p'] >= 0.05 or abs(fvf['peri_pct']) < abs(mvf['peri_pct']) / 2:
-    print('  -> MVF drops but FVF is preserved/weaker: demyelination-dominant '
-          '(axons relatively spared). This is a MIMM-specific readout.')
-else:
-    print('  -> FVF drops alongside MVF: evidence of axonal loss, not pure demyelination.')
+if mvf and avf:
+    print(f'  myelin  (MVF): {mvf["peri_pct"]:+.1f}%  p={mvf["peri_p"]:.3g}  d={mvf["peri_d"]:+.2f}')
+    print(f'  axon    (AVF): {avf["peri_pct"]:+.1f}%  p={avf["peri_p"]:.3g}  d={avf["peri_d"]:+.2f}')
+    if avf['peri_p'] >= 0.05:
+        print('  -> AVF (axon) is PRESERVED while MVF drops: demyelination-dominant, '
+              'axons relatively spared. This is the MIMM-specific result.')
+    elif abs(avf['peri_d']) < abs(mvf['peri_d']):
+        print('  -> Both drop but myelin more (|d| MVF > |d| AVF): demyelination-led, '
+              'with some axonal loss.')
+    else:
+        print('  -> AVF drops as much as / more than MVF: substantial axonal loss, '
+              'not selective demyelination.')
 
 # --- figure: perilesional comparison for the extra maps ---
 plot_maps = ['FVF', 'MIMM iron', 'chi-sep iron', 'R2*']
