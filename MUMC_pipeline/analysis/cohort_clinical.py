@@ -23,10 +23,15 @@ demographics_mvf.csv.
 import sys, os, glob, datetime
 import numpy as np
 import pandas as pd
+import nibabel as nib
 from scipy import stats
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+
+
+def _load(p):
+    return np.asarray(nib.load(p).dataobj) if os.path.exists(p) else None
 
 if len(sys.argv) < 2:
     sys.exit('usage: cohort_clinical.py <results_dir> [clinical.csv]')
@@ -35,15 +40,34 @@ clin_csv = sys.argv[2] if len(sys.argv) > 2 else None
 ca = os.path.join(results_dir, 'cohort_analysis')
 
 # --- per-subject imaging summaries from roi_stats ---
+# WM_AVF = WM_FVF - WM_MVF is the axon volume fraction: the measure that, in
+# theory, should track disability (EDSS) better than MWF, since EDSS is driven by
+# axonal loss and MWF (myelin water) is blind to axons.
 rows = []
 for f in sorted(glob.glob(os.path.join(results_dir, '*', 'analysis', 'roi_stats.csv'))):
     sid = os.path.basename(os.path.dirname(os.path.dirname(f)))
     df = pd.read_csv(f)
     def col(c):
         return float(np.nanmean(df[c])) if c in df.columns else np.nan
-    rows.append({'id': sid, 'WM_MVF': col('MVF_atlas_mean'),
+    wm_mvf, wm_fvf = col('MVF_atlas_mean'), col('FVF_atlas_mean')
+    rows.append({'id': sid, 'WM_MVF': wm_mvf, 'WM_FVF': wm_fvf,
+                 'WM_AVF': wm_fvf - wm_mvf if np.isfinite(wm_fvf) and np.isfinite(wm_mvf) else np.nan,
                  'WM_iron': col('chi_pos_chisep_mean'), 'WM_R2s': col('R2s_atlas_mean')})
 img = pd.DataFrame(rows)
+
+# whole-WM mean MWF from the registered T2-GRASE map (for the MWF-vs-EDSS head-to-head)
+mwf_rows = []
+for mp in sorted(glob.glob(os.path.join(results_dir, '*', 'grase', 'MWF.nii.gz'))):
+    d = os.path.dirname(os.path.dirname(mp)); sid = os.path.basename(d)
+    mwf = _load(mp); brain = _load(os.path.join(d, 'qsm', 'brain_mask.nii.gz'))
+    fa = _load(os.path.join(d, 'atlas', 'FA_atlas.nii.gz'))
+    if any(v is None for v in (mwf, brain, fa)):
+        continue
+    mwf = np.clip(mwf.astype(float), 0, 0.5)
+    wm = (brain > 0) & (fa > 0.20) & np.isfinite(mwf) & (mwf > 0)
+    mwf_rows.append({'id': sid, 'WM_MWF': float(mwf[wm].mean()) if wm.sum() else np.nan})
+if mwf_rows:
+    img = img.merge(pd.DataFrame(mwf_rows), on='id', how='left')
 
 # lesion MVF + volume
 les_csv = os.path.join(ca, 'cohort_lesion_vs_nawm.csv')
@@ -97,12 +121,32 @@ if clin_csv and os.path.exists(clin_csv):
     img = img.merge(c[[col for col in ['id', 'edss', 'dur_years'] if col in c.columns]], on='id', how='left')
 
     print('\n=== imaging vs clinical severity ===')
+    METRICS = ['WM_MVF', 'WM_FVF', 'WM_AVF', 'WM_MWF', 'WM_iron', 'lesion_MVF', 'lesion_mL']
     for clinvar, lab in [('edss', 'EDSS'), ('dur_years', 'disease duration')]:
         if clinvar not in img.columns:
             print(f'  ({lab} not found in clinical file)'); continue
-        for met in ['WM_MVF', 'lesion_MVF', 'lesion_mL', 'WM_iron']:
+        for met in METRICS:
             if met in img.columns:
                 corr(img[clinvar].values, img[met].values, lab, met)
+
+    # --- head-to-head: do MIMM's axon measures track EDSS better than MWF? ---
+    if 'edss' in img.columns:
+        print('\n--- EDSS head-to-head: MIMM axon (AVF/FVF) vs MWF ---')
+        print('  EDSS is axon-driven; MWF is blind to axons. If AVF/FVF track EDSS')
+        print('  and MWF does not, that is the MIMM-specific advantage.')
+        def r_of(met):
+            if met not in img.columns:
+                return None
+            x, y = img['edss'].values, img[met].values
+            m = np.isfinite(x) & np.isfinite(y)
+            return (stats.pearsonr(x[m], y[m]) + (int(m.sum()),)) if m.sum() >= 4 else None
+        for met, tag in [('WM_AVF', 'MIMM axon'), ('WM_FVF', 'MIMM fibre'),
+                         ('WM_MVF', 'MIMM myelin'), ('WM_MWF', 'MWF (reference)')]:
+            res = r_of(met)
+            if res:
+                r, p, nn = res
+                print(f'    {tag:18s} ({met:7s}) vs EDSS: r = {r:+.3f}, p = {p:.3f} (n={nn})'
+                      + ('  *' if p < 0.05 else ''))
 
     # figure: the two most clinically interesting scatters
     fig, axes = plt.subplots(1, 2, figsize=(11, 5))
