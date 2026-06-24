@@ -60,29 +60,37 @@ for ld in sorted(glob.glob(os.path.join(results_dir, '*', 'lesion', 'lesion_mask
     vox_mL = float(np.prod(zooms)) / 1000.0
 
     labels, nlab = ndimage.label(mask)
-    for i in range(1, nlab + 1):
-        comp = labels == i
+    objs = ndimage.find_objects(labels)          # bounding box per component
+    pad = GAP + WIDTH + 1
+    for i, sl in enumerate(objs, start=1):
+        if sl is None:
+            continue
+        # crop to a padded bounding box so dilation is cheap (not whole-brain)
+        esl = tuple(slice(max(0, s.start - pad), min(dim, s.stop + pad))
+                    for s, dim in zip(sl, mask.shape))
+        comp = labels[esl] == i
         if comp.sum() < MIN_LES:
             continue
         n_total += 1
         inner = ndimage.binary_dilation(comp, iterations=GAP)
         outer = ndimage.binary_dilation(comp, iterations=GAP + WIDTH)
-        peri  = outer & ~inner & nawm
+        peri  = outer & ~inner & nawm[esl]
         if peri.sum() < MIN_PERI:
             n_rej_peri += 1; continue
+        mvf_c, mwf_c, flair_c = mvf[esl], mwf[esl], flair[esl]
 
         def m(vol, msk):
             v = vol[msk]; v = v[np.isfinite(v)]; return float(np.mean(v)) if v.size else np.nan
 
         # FLAIR confirmation: real WMH is brighter than its surroundings
-        fl_les, fl_peri = m(flair, comp), m(flair, peri)
+        fl_les, fl_peri = m(flair_c, comp), m(flair_c, peri)
         if not (np.isfinite(fl_les) and np.isfinite(fl_peri) and fl_peri > 0
                 and fl_les >= fl_peri * (1 + FLAIR_MARGIN)):
             n_rej_flair += 1; continue
         n_conf += 1
 
-        mvf_l, mvf_p = m(mvf, comp), m(mvf, peri)
-        mwf_l, mwf_p = m(mwf, comp), m(mwf, peri)
+        mvf_l, mvf_p = m(mvf_c, comp), m(mvf_c, peri)
+        mwf_l, mwf_p = m(mwf_c, comp), m(mwf_c, peri)
         if not all(np.isfinite(x) and x > 0 for x in (mvf_p, mwf_p)):
             continue
         lesions.append({'subject': sid, 'vol_mL': comp.sum() * vox_mL,
