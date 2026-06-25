@@ -164,11 +164,11 @@ if clin_csv and os.path.exists(clin_csv):
                 print(f'    {tag:18s} ({met:7s}) vs {olab}: rho = {rho:+.3f}, p = {p:.3f} (n={int(m.sum())})'
                       + ('  *' if p < 0.05 else ''))
 
-    # figure: the SDMT head-to-head — does the axonal compartment track cognition
-    # where the myelin-water reference cannot?
+    # figure: 9HPT head-to-head — FVF (rho=-.47, p=.028) vs MWF (flat)
+    # 9HPT is in seconds so higher = worse; negative rho = more fibre → faster peg
     fig, axes = plt.subplots(1, 2, figsize=(11, 5))
-    panels = [('sdmt', 'WM_AVF', 'SDMT (processing speed)', 'WM-mean AVF (MIMM axon)'),
-              ('sdmt', 'WM_MWF', 'SDMT (processing speed)', 'WM-mean MWF (reference)')]
+    panels = [('hpt_dom', 'WM_FVF', '9-hole peg test, dominant hand (s)', 'WM-mean FVF (MIMM fibre)'),
+              ('hpt_dom', 'WM_MWF', '9-hole peg test, dominant hand (s)', 'WM-mean MWF (reference)')]
     for ax, (ov, met, xl, yl) in zip(axes, panels):
         if ov in img.columns and met in img.columns:
             x, y = img[ov].values, img[met].values
@@ -181,7 +181,7 @@ if clin_csv and os.path.exists(clin_csv):
                 ax.text(0.04, 0.94, f'rho={rho:.2f}, p={p:.3f} (n={int(m.sum())})', transform=ax.transAxes,
                         va='top', bbox=dict(boxstyle='round', fc='white', ec='0.7'))
             ax.set_xlabel(xl); ax.set_ylabel(yl); ax.grid(alpha=0.25)
-    fig.suptitle('Does the axonal compartment track cognition where MWF cannot?', fontsize=12)
+    fig.suptitle('Does the fibre compartment track dexterity where MWF cannot?', fontsize=12)
     fig.tight_layout(rect=[0, 0, 1, 0.95])
     fig.savefig(os.path.join(ca, 'cohort_clinical.png'), dpi=150)
     print(f'\nsaved: cohort_clinical.png')
