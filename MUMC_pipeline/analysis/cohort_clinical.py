@@ -10,10 +10,17 @@ Per patient it builds:
   WM_R2s      whole-white-matter mean R2*  (for R2*-vs-age, an iron proxy)
   lesion_MVF  mean MVF inside lesions      (from cohort_lesion_vs_nawm.csv)
   lesion_mL   total lesion volume          (n_lesion / 1000)
-and correlates them with clinical variables: EDSS and disease duration (years).
+and correlates them (Spearman) with the clinical outcomes that are available:
+  edss      EDSS disability score (floored: most patients <= 2.5 in this cohort)
+  sdmt      SDMT processing speed (best variance; WM-myelin sensitive) <- primary
+  t25ftwt   timed 25-ft walk (s)
+  hpt_dom   9-hole peg, dominant hand mean (s)
+The key test is the head-to-head: do MIMM's axon measures (AVF/FVF) track an
+outcome where MWF (myelin water, axon-blind) does not?
 
-Clinical CSV (--, any columns named loosely): participant id, edss,
-and EITHER disease_duration_years OR date_diagnosis (duration computed to 2026).
+Clinical CSV: produce it from the Castor export with make_clinical_csv.py
+(participant_id, edss, sdmt, t25ftwt, hpt_dom, ...). Disease duration is NOT
+computed — the export carries no diagnosis date.
 
 Usage:
   python3 cohort_clinical.py <results_dir> [clinical.csv]
@@ -99,74 +106,86 @@ if 'age' in img.columns:
     corr(img['age'].values, img['WM_R2s'].values, 'age', 'WM R2*')
     corr(img['age'].values, img['WM_iron'].values, 'age', 'WM iron')
 
-# --- clinical relationships ---
+# --- clinical relationships (Spearman: small n, floored EDSS, skewed tests) ---
+def scorr(x, y, metlabel, outlabel):
+    m = np.isfinite(x) & np.isfinite(y)
+    if m.sum() < 6:
+        print(f'  {outlabel:9s} vs {metlabel:11s}: n={int(m.sum())} too few'); return
+    rho, p = stats.spearmanr(x[m], y[m])
+    print(f'  {outlabel:9s} vs {metlabel:11s}: rho = {rho:+.3f}, p = {p:.3f}  (n={int(m.sum())})'
+          + (' *' if p < 0.05 else ''))
+
 if clin_csv and os.path.exists(clin_csv):
     c = pd.read_csv(clin_csv)
-    cols = {k.lower().strip(): k for k in c.columns}
-    idc = next((v for k, v in cols.items() if 'participant' in k or k == 'id' or 'subject' in k), None)
-    edssc = next((v for k, v in cols.items() if 'edss' in k), None)
-    durc = next((v for k, v in cols.items() if 'duration' in k), None)
-    diagc = next((v for k, v in cols.items() if 'diagnos' in k and 'date' in k), None)
+    c.columns = [str(k).strip() for k in c.columns]
+    low = {k.lower(): k for k in c.columns}
+    idc = next((low[k] for k in low if 'participant' in k or k == 'id' or 'subject' in k), None)
     c = c.rename(columns={idc: 'id'}); c['id'] = c['id'].astype(str).str.strip()
-    if edssc: c = c.rename(columns={edssc: 'edss'})
-    if durc:
-        c = c.rename(columns={durc: 'dur_years'})
-    elif diagc:
-        def yrs(s):
-            try:
-                return (datetime.date(2026, 6, 24) - pd.to_datetime(s).date()).days / 365.25
-            except Exception:
-                return np.nan
-        c['dur_years'] = c[diagc].map(yrs)
-    img = img.merge(c[[col for col in ['id', 'edss', 'dur_years'] if col in c.columns]], on='id', how='left')
+    # canonicalise outcome columns (decoder already names them, this just tolerates variants)
+    for canon, keys in [('edss', ['edss']), ('sdmt', ['sdmt']),
+                        ('t25ftwt', ['t25', 'walk']), ('hpt_dom', ['hpt_dom', 'peg_dom']),
+                        ('hpt_nondom', ['hpt_nondom'])]:
+        if canon not in c.columns:
+            hit = next((low[k] for k in low if any(s in k for s in keys)), None)
+            if hit:
+                c = c.rename(columns={hit: canon})
+    OUTCOMES = [('edss', 'EDSS'), ('sdmt', 'SDMT'), ('t25ftwt', 'T25ftWT'), ('hpt_dom', '9HPT')]
+    keep = ['id'] + [o for o, _ in OUTCOMES if o in c.columns]
+    img = img.merge(c[keep], on='id', how='left')
 
-    print('\n=== imaging vs clinical severity ===')
     METRICS = ['WM_MVF', 'WM_FVF', 'WM_AVF', 'WM_MWF', 'WM_iron', 'lesion_MVF', 'lesion_mL']
-    for clinvar, lab in [('edss', 'EDSS'), ('dur_years', 'disease duration')]:
-        if clinvar not in img.columns:
-            print(f'  ({lab} not found in clinical file)'); continue
+    print('\n=== imaging vs clinical outcomes (Spearman) ===')
+    print('NB exploratory: small n, EDSS is floored (most patients <=2.5), tests are skewed.')
+    for ov, olab in OUTCOMES:
+        if ov not in img.columns:
+            continue
+        print(f'-- {olab} --')
         for met in METRICS:
             if met in img.columns:
-                corr(img[clinvar].values, img[met].values, lab, met)
+                scorr(img[met].values, img[ov].values, met, olab)
 
-    # --- head-to-head: do MIMM's axon measures track EDSS better than MWF? ---
-    if 'edss' in img.columns:
-        print('\n--- EDSS head-to-head: MIMM axon (AVF/FVF) vs MWF ---')
-        print('  EDSS is axon-driven; MWF is blind to axons. If AVF/FVF track EDSS')
-        print('  and MWF does not, that is the MIMM-specific advantage.')
-        def r_of(met):
-            if met not in img.columns:
-                return None
-            x, y = img['edss'].values, img[met].values
-            m = np.isfinite(x) & np.isfinite(y)
-            return (stats.pearsonr(x[m], y[m]) + (int(m.sum()),)) if m.sum() >= 4 else None
+    # --- head-to-head on the two key outcomes: MIMM axon vs the MWF reference ---
+    # SDMT (processing speed) is the WM-myelin-sensitive cognitive measure with real
+    # variance here; EDSS is the conventional disability scale (axon-driven but floored).
+    # If AVF/FVF track an outcome where MWF does not, that is the MIMM-specific payoff.
+    for ov, olab, note in [('sdmt', 'SDMT', 'cognition / WM-myelin sensitive'),
+                           ('edss', 'EDSS', 'disability / axon-driven, floored')]:
+        if ov not in img.columns:
+            continue
+        print(f'\n--- {olab} head-to-head: MIMM axon (AVF/FVF) vs MWF  [{note}] ---')
         for met, tag in [('WM_AVF', 'MIMM axon'), ('WM_FVF', 'MIMM fibre'),
                          ('WM_MVF', 'MIMM myelin'), ('WM_MWF', 'MWF (reference)')]:
-            res = r_of(met)
-            if res:
-                r, p, nn = res
-                print(f'    {tag:18s} ({met:7s}) vs EDSS: r = {r:+.3f}, p = {p:.3f} (n={nn})'
+            if met not in img.columns:
+                continue
+            x, y = img[ov].values, img[met].values
+            m = np.isfinite(x) & np.isfinite(y)
+            if m.sum() >= 6:
+                rho, p = stats.spearmanr(x[m], y[m])
+                print(f'    {tag:18s} ({met:7s}) vs {olab}: rho = {rho:+.3f}, p = {p:.3f} (n={int(m.sum())})'
                       + ('  *' if p < 0.05 else ''))
 
-    # figure: the two most clinically interesting scatters
+    # figure: the SDMT head-to-head — does the axonal compartment track cognition
+    # where the myelin-water reference cannot?
     fig, axes = plt.subplots(1, 2, figsize=(11, 5))
-    for ax, (clinvar, met, xl, yl) in zip(axes, [('edss', 'WM_MVF', 'EDSS', 'WM-mean MVF'),
-                                                 ('dur_years', 'lesion_mL', 'disease duration (y)', 'lesion volume (mL)')]):
-        if clinvar in img.columns and met in img.columns:
-            x, y = img[clinvar].values, img[met].values
+    panels = [('sdmt', 'WM_AVF', 'SDMT (processing speed)', 'WM-mean AVF (MIMM axon)'),
+              ('sdmt', 'WM_MWF', 'SDMT (processing speed)', 'WM-mean MWF (reference)')]
+    for ax, (ov, met, xl, yl) in zip(axes, panels):
+        if ov in img.columns and met in img.columns:
+            x, y = img[ov].values, img[met].values
             m = np.isfinite(x) & np.isfinite(y)
-            if m.sum() >= 4:
+            if m.sum() >= 6:
                 ax.scatter(x[m], y[m], s=40, c='#1f77b4', alpha=0.8)
-                r, p = stats.pearsonr(x[m], y[m])
+                rho, p = stats.spearmanr(x[m], y[m])
                 b, a = np.polyfit(x[m], y[m], 1); xs = np.linspace(x[m].min(), x[m].max(), 100)
                 ax.plot(xs, b*xs+a, 'k--', lw=1.3)
-                ax.text(0.04, 0.94, f'r={r:.2f}, p={p:.3f} (n={m.sum()})', transform=ax.transAxes,
+                ax.text(0.04, 0.94, f'rho={rho:.2f}, p={p:.3f} (n={int(m.sum())})', transform=ax.transAxes,
                         va='top', bbox=dict(boxstyle='round', fc='white', ec='0.7'))
             ax.set_xlabel(xl); ax.set_ylabel(yl); ax.grid(alpha=0.25)
-    fig.suptitle('MIMM imaging vs clinical severity', fontsize=12)
+    fig.suptitle('Does the axonal compartment track cognition where MWF cannot?', fontsize=12)
     fig.tight_layout(rect=[0, 0, 1, 0.95])
     fig.savefig(os.path.join(ca, 'cohort_clinical.png'), dpi=150)
     print(f'\nsaved: cohort_clinical.png')
 else:
-    print('\nNo clinical CSV given — EDSS / disease-duration correlations skipped.')
-    print('Provide one:  python3 cohort_clinical.py <results_dir> clinical.csv')
+    print('\nNo clinical CSV given — clinical correlations skipped.')
+    print('Build one:  python3 make_clinical_csv.py <IMPROMYMS_export.csv> clinical.csv')
+    print('Then run :  python3 cohort_clinical.py <results_dir> clinical.csv')
