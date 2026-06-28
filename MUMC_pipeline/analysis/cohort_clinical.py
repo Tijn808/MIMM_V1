@@ -213,48 +213,113 @@ if clin_csv and os.path.exists(clin_csv):
             if line:
                 print(line)
 
-    # figure: left = FVF-vs-MWF head-to-head scatter (9HPT); right = every
-    # technique's rho against 9HPT, so the ordering across techniques is explicit.
-    # 9HPT is in seconds so higher = worse; negative rho = more fibre -> faster peg.
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-    # left panel: the head-to-head scatter
-    ax = axes[0]
-    if 'hpt_dom' in img.columns and 'WM_FVF' in img.columns:
-        x, y = img['hpt_dom'].values, img['WM_FVF'].values
-        m = np.isfinite(x) & np.isfinite(y)
-        ax.scatter(x[m], y[m], s=40, c='#1f77b4', alpha=0.8)
-        rho, p = stats.spearmanr(x[m], y[m])
-        b, a = np.polyfit(x[m], y[m], 1); xs = np.linspace(x[m].min(), x[m].max(), 100)
-        ax.plot(xs, b*xs+a, 'k--', lw=1.3)
-        ax.text(0.04, 0.94, f'FVF: rho={rho:.2f}, p={p:.3f} (n={int(m.sum())})', transform=ax.transAxes,
-                va='top', bbox=dict(boxstyle='round', fc='white', ec='0.7'))
-    ax.set_xlabel('9-hole peg test, dominant hand (s)')
-    ax.set_ylabel('WM-mean FVF (MIMM fibre)'); ax.grid(alpha=0.25)
-    # right panel: rho of every technique's myelin metric vs 9HPT
-    ax = axes[1]
-    bar_metrics = [('WM_MVF', 'MIMM\nMVF'), ('WM_FVF', 'MIMM\nFVF'), ('WM_AVF', 'MIMM\nAVF'),
-                   ('WM_chineg', 'chi-sep\nchi-'), ('WM_MWF', 'MWF\nref')]
-    labels, rhos, cols = [], [], []
-    for met, lab in bar_metrics:
-        if met not in img.columns:
-            continue
-        x, y = img['hpt_dom'].values, img[met].values
+    # --- partial correlation: does the axon compartment track 9HPT once myelin
+    #     is held constant? (Spearman partial: rank-transform, then partial Pearson) ---
+    def partial_spearman(ov, target, control):
+        cols = [ov, target, control]
+        if any(c not in img.columns for c in cols):
+            return None
+        sub = img[cols].apply(pd.to_numeric, errors='coerce').dropna()
+        if len(sub) < 8:
+            return None
+        rk = sub.rank()
+        r = rk.corr().values  # 0=ov, 1=target, 2=control
+        r_ot, r_oc, r_tc = r[0, 1], r[0, 2], r[1, 2]
+        denom = np.sqrt((1 - r_oc**2) * (1 - r_tc**2))
+        if denom == 0:
+            return None
+        pr = (r_ot - r_oc * r_tc) / denom
+        n = len(sub); dfree = n - 3
+        t = pr * np.sqrt(dfree / (1 - pr**2)) if abs(pr) < 1 else np.inf
+        return pr, 2 * stats.t.sf(abs(t), dfree), n
+
+    print('\n=== partial correlation: axon vs 9HPT, controlling for myelin ===')
+    for tgt, lab in [('WM_AVF', 'AVF'), ('WM_FVF', 'FVF')]:
+        pc = partial_spearman('hpt_dom', tgt, 'WM_MVF')
+        if pc:
+            print(f'  {lab} vs 9HPT | MVF held constant: partial rho = {pc[0]:+.3f}, '
+                  f'p = {pc[1]:.3f} (n={pc[2]})' + ('  *' if pc[1] < 0.05 else ''))
+
+    # ---- comprehensive clinical figure ----
+    # (A) headline regplot FVF vs 9HPT with bootstrap CI band
+    # (B,C) forest plots: every metric's Spearman rho vs 9HPT / SDMT, with
+    #       bootstrap 95% CIs, oriented so positive = better function.
+    METR = [('WM_FVF', 'FVF (fibre)', True), ('WM_AVF', 'AVF (axon)', True),
+            ('WM_MVF', 'MVF (myelin)', False), ('WM_chineg', 'chi-  (chi-sep)', False),
+            ('WM_MWF', 'MWF (reference)', False)]
+    ORIENT = {'hpt_dom': -1, 'sdmt': +1}   # 9HPT: lower time = better -> flip sign
+
+    def boot_ci(x, y, n_boot=2000):
+        rng = np.random.default_rng(0); n = len(x); out = []
+        for _ in range(n_boot):
+            i = rng.integers(0, n, n)
+            if np.std(x[i]) > 0 and np.std(y[i]) > 0:
+                out.append(stats.spearmanr(x[i], y[i]).correlation)
+        out = np.array(out)
+        return np.nanpercentile(out, 2.5), np.nanpercentile(out, 97.5)
+
+    def metric_stat(ov, met):
+        x, y = img[ov].values, img[met].values
         m = np.isfinite(x) & np.isfinite(y)
         if m.sum() < 6:
-            continue
+            return None
         rho, p = stats.spearmanr(x[m], y[m])
-        labels.append(lab + ('*' if p < 0.05 else '')); rhos.append(rho)
-        cols.append('#1f77b4' if met.startswith('WM_FVF') or met.startswith('WM_AVF') else '#999999')
-    ax.bar(range(len(rhos)), rhos, color=cols)
-    ax.axhline(0, color='k', lw=0.8)
-    ax.set_xticks(range(len(labels))); ax.set_xticklabels(labels, fontsize=9)
-    ax.set_ylabel('Spearman rho vs 9HPT'); ax.grid(alpha=0.25, axis='y')
-    ax.set_title('* p < 0.05; MIMM compartments in blue', fontsize=10)
-    fig.suptitle('Does the fibre/axon compartment track dexterity where the single-number measures cannot?',
-                 fontsize=12)
-    fig.tight_layout(rect=[0, 0, 1, 0.95])
+        lo, hi = boot_ci(x[m], y[m])
+        return rho, p, lo, hi
+
+    def forest(ax, ov, title):
+        sgn = ORIENT[ov]; data = []
+        for met, lab, is_c in METR:
+            s = metric_stat(ov, met)
+            if s is None:
+                continue
+            rho, p, lo, hi = s
+            orho = sgn * rho; olo, ohi = sorted([sgn * lo, sgn * hi])
+            data.append((lab, is_c, orho, olo, ohi, p))
+        data.sort(key=lambda d: d[2])                  # weakest at bottom, strongest at top
+        for yi, (lab, is_c, orho, olo, ohi, p) in enumerate(data):
+            col = '#1f77b4' if is_c else '#9e9e9e'
+            ax.errorbar(orho, yi, xerr=[[max(0, orho - olo)], [max(0, ohi - orho)]],
+                        fmt='o', color=col, ecolor=col, capsize=3, ms=8, lw=1.8, zorder=3)
+            if p < 0.05:
+                ax.text(ohi + 0.03, yi, '*', va='center', color=col, fontsize=14)
+        ax.axvline(0, color='k', lw=0.9, zorder=1)
+        ax.set_yticks(range(len(data))); ax.set_yticklabels([d[0] for d in data], fontsize=9)
+        ax.set_xlim(-0.55, 0.95); ax.set_xlabel('Spearman rho  (positive = better function)')
+        ax.set_title(title, fontsize=11); ax.grid(alpha=0.2, axis='x')
+
+    fig, axd = plt.subplot_mosaic([['A', 'B'], ['A', 'C']], figsize=(13, 6.5))
+    # (A) headline scatter with bootstrap regression band
+    ax = axd['A']
+    x, y = img['hpt_dom'].values, img['WM_FVF'].values
+    m = np.isfinite(x) & np.isfinite(y); x, y = x[m], y[m]
+    rho, p = stats.spearmanr(x, y)
+    xs = np.linspace(x.min(), x.max(), 100)
+    rng = np.random.default_rng(0); preds = []
+    for _ in range(1000):
+        i = rng.integers(0, len(x), len(x))
+        bb, aa = np.polyfit(x[i], y[i], 1); preds.append(bb * xs + aa)
+    preds = np.array(preds)
+    ax.fill_between(xs, np.percentile(preds, 2.5, 0), np.percentile(preds, 97.5, 0),
+                    color='#1f77b4', alpha=0.18, zorder=1)
+    b, a = np.polyfit(x, y, 1); ax.plot(xs, b * xs + a, 'k--', lw=1.5, zorder=2)
+    ax.scatter(x, y, s=44, c='#1f77b4', alpha=0.9, zorder=3, edgecolor='white', lw=0.5)
+    ax.text(0.04, 0.06, f'FVF vs 9HPT\nrho = {rho:.2f}, p = {p:.3f} (n={len(x)})',
+            transform=ax.transAxes, va='bottom',
+            bbox=dict(boxstyle='round', fc='white', ec='0.7'))
+    ax.set_xlabel('9-hole peg test, dominant hand (s)')
+    ax.set_ylabel('WM-mean FVF (MIMM fibre)'); ax.grid(alpha=0.25)
+    forest(axd['B'], 'hpt_dom', '9-hole peg (dexterity)')
+    forest(axd['C'], 'sdmt', 'SDMT (processing speed)')
+    from matplotlib.patches import Patch
+    axd['C'].legend(handles=[Patch(color='#1f77b4', label='MIMM compartment (FVF, AVF)'),
+                             Patch(color='#9e9e9e', label='single-number measure')],
+                    loc='lower right', fontsize=8, framealpha=0.9)
+    fig.suptitle('Clinical correlates: the fibre/axon compartment vs the single-number measures '
+                 '(bootstrap 95% CI)', fontsize=12)
+    fig.tight_layout(rect=[0, 0, 1, 0.96])
     fig.savefig(os.path.join(ca, 'cohort_clinical.png'), dpi=150)
-    print(f'\nsaved: cohort_clinical.png')
+    print('\nsaved: cohort_clinical.png  (regplot + bootstrap-CI forest plots)')
 else:
     print('\nNo clinical CSV given — clinical correlations skipped.')
     print('Build one:  python3 make_clinical_csv.py <IMPROMYMS_export.csv> clinical.csv')
