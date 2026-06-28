@@ -60,9 +60,12 @@ for f in sorted(glob.glob(os.path.join(results_dir, '*', 'analysis', 'roi_stats.
     # chi-separation diamagnetic (myelin) channel; try the likely column names
     wm_chineg = next((col(c) for c in ('chi_neg_chisep_mean', 'chi_neg_mean',
                                        'abs_chi_neg_chisep_mean') if c in df.columns), np.nan)
+    # MIMM g-ratio (axon/fibre geometry) -- a MIMM-unique output
+    wm_gratio = next((col(c) for c in ('g_ratio_atlas_mean', 'g_ratio_Atlas_mean',
+                                       'gratio_atlas_mean') if c in df.columns), np.nan)
     rows.append({'id': sid, 'WM_MVF': wm_mvf, 'WM_FVF': wm_fvf,
                  'WM_AVF': wm_fvf - wm_mvf if np.isfinite(wm_fvf) and np.isfinite(wm_mvf) else np.nan,
-                 'WM_chineg': wm_chineg,
+                 'WM_gratio': wm_gratio, 'WM_chineg': wm_chineg,
                  'WM_iron': col('chi_pos_chisep_mean'), 'WM_R2s': col('R2s_atlas_mean')})
 img = pd.DataFrame(rows)
 
@@ -173,7 +176,7 @@ if clin_csv and os.path.exists(clin_csv):
     keep = ['id'] + [o for o, _ in OUTCOMES if o in c.columns]
     img = img.merge(c[keep], on='id', how='left')
 
-    METRICS = ['WM_MVF', 'WM_FVF', 'WM_AVF', 'WM_chineg', 'WM_MWF', 'WM_iron', 'lesion_MVF', 'lesion_mL']
+    METRICS = ['WM_MVF', 'WM_FVF', 'WM_AVF', 'WM_gratio', 'WM_chineg', 'WM_MWF', 'WM_iron', 'lesion_MVF', 'lesion_mL']
     print('\n=== imaging vs clinical outcomes (Spearman) ===')
     print('NB exploratory: small n, EDSS is floored (most patients <=2.5), tests are skewed.')
     for ov, olab in OUTCOMES:
@@ -245,6 +248,7 @@ if clin_csv and os.path.exists(clin_csv):
     # (B,C) forest plots: every metric's Spearman rho vs 9HPT / SDMT, with
     #       bootstrap 95% CIs, oriented so positive = better function.
     METR = [('WM_FVF', 'FVF (fibre)', True), ('WM_AVF', 'AVF (axon)', True),
+            ('WM_gratio', 'g-ratio', True),
             ('WM_MVF', 'MVF (myelin)', False), ('WM_chineg', 'chi-  (chi-sep)', False),
             ('WM_MWF', 'MWF (reference)', False)]
     ORIENT = {'hpt_dom': -1, 'sdmt': +1}   # 9HPT: lower time = better -> flip sign
@@ -312,8 +316,8 @@ if clin_csv and os.path.exists(clin_csv):
     forest(axd['B'], 'hpt_dom', '9-hole peg (dexterity)')
     forest(axd['C'], 'sdmt', 'SDMT (processing speed)')
     from matplotlib.patches import Patch
-    axd['C'].legend(handles=[Patch(color='#1f77b4', label='MIMM compartment (FVF, AVF)'),
-                             Patch(color='#9e9e9e', label='single-number measure')],
+    axd['C'].legend(handles=[Patch(color='#1f77b4', label='MIMM-specific (FVF, AVF, g-ratio)'),
+                             Patch(color='#9e9e9e', label='single-number myelin (MVF, chi-, MWF)')],
                     loc='lower right', fontsize=8, framealpha=0.9)
     fig.suptitle('Clinical correlates: the fibre/axon compartment vs the single-number measures '
                  '(bootstrap 95% CI)', fontsize=12)
