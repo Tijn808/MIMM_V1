@@ -27,6 +27,7 @@ from scipy import stats
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from matplotlib.transforms import blended_transform_factory
 
 # JHU ICBM-DTI-81 labels 1..50, in the pipeline's label order.
 JHU_NAMES = [
@@ -109,25 +110,36 @@ print(f'  Bland-Altman bias (MVF-MWF) = {bias:+.4f}, LoA +/- {1.96*sd:.4f}')
 print(f'  between-subject r = {r:+.3f} (p={p:.3f})')
 
 fig, (axA, axB) = plt.subplots(1, 2, figsize=(12, 5.2))
-axA.scatter(nawm_mwf, nawm_mvf, s=45, c='#1f77b4', alpha=0.85)
-b, a = np.polyfit(nawm_mwf, nawm_mvf, 1); xs = np.linspace(nawm_mwf.min(), nawm_mwf.max(), 100)
+# work in percent to match the reference (Sisman et al. 2025, Fig 4) BA style
+mvf_pct, mwf_pct = nawm_mvf * 100, nawm_mwf * 100
+
+# --- scatter ---
+axA.scatter(mwf_pct, mvf_pct, s=45, c='#1f77b4', alpha=0.85)
+b, a = np.polyfit(mwf_pct, mvf_pct, 1); xs = np.linspace(mwf_pct.min(), mwf_pct.max(), 100)
 axA.plot(xs, b * xs + a, 'k--', lw=1.3)
 axA.text(0.04, 0.94, f'r = {r:.2f}, p = {p:.3f}\nn = {n_sub} subjects (NAWM)',
          transform=axA.transAxes, va='top', fontsize=10,
          bbox=dict(boxstyle='round', fc='white', ec='0.7'))
-axA.set_xlabel('MWF  T2-GRASE  (NAWM mean, fraction)')
-axA.set_ylabel('MVF  MIMM Atlas  (NAWM mean, fraction)')
+axA.set_xlabel('MWF  T2-GRASE  (NAWM mean, %)')
+axA.set_ylabel('MVF  MIMM Atlas  (NAWM mean, %)')
 axA.set_title('MIMM MVF vs MWF, whole-NAWM per subject'); axA.grid(alpha=0.25)
 
-mean = (nawm_mvf + nawm_mwf) / 2
-axB.scatter(mean, diff, s=45, c='#1f77b4', alpha=0.85)
-axB.axhline(bias, color='k', lw=1.4)
-axB.axhline(bias + 1.96 * sd, color='0.5', ls='--', lw=1)
-axB.axhline(bias - 1.96 * sd, color='0.5', ls='--', lw=1)
-axB.text(0.04, 0.94, f'bias = {bias:+.4f}\nLoA +/- {1.96*sd:.4f}',
-         transform=axB.transAxes, va='top', fontsize=10,
-         bbox=dict(boxstyle='round', fc='white', ec='0.7'))
-axB.set_xlabel('mean of MVF & MWF (NAWM)'); axB.set_ylabel('MVF - MWF')
+# --- Bland-Altman, paper style: %, red MEAN / +-1.96SD lines each labelled ---
+mean_pct = (mvf_pct + mwf_pct) / 2; diff_pct = mvf_pct - mwf_pct
+bias_p = diff_pct.mean(); sd_p = diff_pct.std(ddof=1)
+hi, lo = bias_p + 1.96 * sd_p, bias_p - 1.96 * sd_p
+axB.scatter(mean_pct, diff_pct, s=45, c='#1f77b4', alpha=0.85)
+axB.axhline(bias_p, color='#d62728', lw=1.8)
+axB.axhline(hi, color='#d62728', ls='--', lw=1.3)
+axB.axhline(lo, color='#d62728', ls='--', lw=1.3)
+tform = blended_transform_factory(axB.transAxes, axB.transData)
+axB.text(0.99, bias_p, f'MEAN: {bias_p:.2f}', transform=tform, va='bottom', ha='right',
+         color='#d62728', fontsize=9)
+axB.text(0.99, hi, f'+1.96SD: {hi:.2f}', transform=tform, va='bottom', ha='right',
+         color='#d62728', fontsize=9)
+axB.text(0.99, lo, f'-1.96SD: {lo:.2f}', transform=tform, va='top', ha='right',
+         color='#d62728', fontsize=9)
+axB.set_xlabel('Mean of MVF & MWF (%)'); axB.set_ylabel('MVF - MWF (%)')
 axB.set_title('Bland-Altman (NAWM, per subject)'); axB.grid(alpha=0.25)
 
 fig.suptitle(f'MIMM MVF vs the independent T2-GRASE MWF reference (NAWM, n={n_sub})', fontsize=12)
