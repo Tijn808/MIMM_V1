@@ -35,6 +35,9 @@ def load(p):
 
 MAPS = [('MVF (Atlas)', 'mimm/MVF_Atlas.nii.gz', lambda x: x),
         ('|chi_neg|',    'chisep/chi_neg.nii.gz', np.abs)]
+# perilesional shell geometry -- identical to the compartment-decomposition figure,
+# so the erosion analysis uses the same location-matched NAWM baseline.
+GAP, WIDTH, MIN_PERI = 2, 3, 50
 
 rows = []
 for ld in sorted(glob.glob(os.path.join(results_dir, '*', 'lesion', 'lesion_mask.nii.gz'))):
@@ -47,7 +50,14 @@ for ld in sorted(glob.glob(os.path.join(results_dir, '*', 'lesion', 'lesion_mask
     if lesion.sum() < 50:                       # match cohort_lesion.py threshold
         print(f'[skip] {sid} ({int(lesion.sum())} lesion vox < 50)'); continue
     eroded = ndimage.binary_erosion(lesion, iterations=1)   # drop 1-voxel rim
-    nawm = (brain > 0) & (fa > 0.20) & ~lesion
+    nawm = (brain > 0) & (fa > 0.20) & ~lesion              # global NAWM (lesion-burden plot only)
+    # location-matched perilesional shell (2-5 voxels outside the lesion); same
+    # baseline as the compartment-decomposition figure, so the two are comparable.
+    inner = ndimage.binary_dilation(lesion, iterations=GAP)
+    outer = ndimage.binary_dilation(lesion, iterations=GAP + WIDTH)
+    peri = outer & ~inner & nawm
+    if peri.sum() < MIN_PERI:
+        print(f'[skip] {sid} (perilesional shell {int(peri.sum())} vox < {MIN_PERI})'); continue
     zooms = nib.load(ld).header.get_zooms()[:3]
     vox_mL = float(np.prod(zooms)) / 1000.0
     r = {'subject': sid, 'lesion_vol_mL': float(lesion.sum()) * vox_mL,
@@ -59,9 +69,11 @@ for ld in sorted(glob.glob(os.path.join(results_dir, '*', 'lesion', 'lesion_mask
         vol = fn(vol.astype(float))
         def mean(m):
             v = vol[m]; v = v[np.isfinite(v)]; return float(np.mean(v)) if v.size else np.nan
-        r[label] = (mean(nawm), mean(lesion), mean(eroded) if eroded.sum() >= 20 else np.nan)
+        r[label] = (mean(peri), mean(lesion), mean(eroded) if eroded.sum() >= 20 else np.nan)
+        if label == 'MVF (Atlas)':
+            r['nawm_mvf_global'] = mean(nawm)               # global NAWM for the burden plot
     rows.append(r)
-    print(f'{sid}: {r["lesion_vol_mL"]:.1f} mL  MVF NAWM/full/eroded '
+    print(f'{sid}: {r["lesion_vol_mL"]:.1f} mL  MVF peri/full/eroded '
           + '/'.join(f'{v:.3f}' for v in r['MVF (Atlas)']))
 
 if not rows:
@@ -86,17 +98,17 @@ for ax, (label, _, _) in zip(axes, MAPS):
     p_erod = stats.ttest_rel(nawm[m2], erod[m2]).pvalue
     pc_full = 100*(full[m1].mean()-nawm[m1].mean())/nawm[m1].mean()
     pc_erod = 100*(erod[m2].mean()-nawm[m2].mean())/nawm[m2].mean()
-    ax.set_xticks([0,1,2]); ax.set_xticklabels(['NAWM', 'lesion\n(full)', 'lesion\n(eroded)'])
+    ax.set_xticks([0,1,2]); ax.set_xticklabels(['peri-NAWM', 'lesion\n(full)', 'lesion\n(eroded)'])
     ax.set_title(f'{label}\nfull {pc_full:+.1f}% (p={p_full:.2g})\n'
                  f'eroded {pc_erod:+.1f}% (p={p_erod:.2g})', fontsize=10)
     ax.grid(alpha=0.25, axis='y')
-fig.suptitle(f'Lesion effect survives mask erosion (n={n})', fontsize=12)
+fig.suptitle(f'Lesion effect survives mask erosion (vs perilesional NAWM, n={n})', fontsize=12)
 fig.tight_layout(rect=[0, 0, 1, 0.94])
 fig.savefig(os.path.join(out_dir, 'cohort_lesion_erosion.png'), dpi=150)
 
 # ---- Figure 2: lesion burden vs NAWM myelin ----
 vol = np.array([r['lesion_vol_mL'] for r in rows])
-nawm_mvf = np.array([r['MVF (Atlas)'][0] for r in rows])
+nawm_mvf = np.array([r.get('nawm_mvf_global', np.nan) for r in rows])   # global NAWM, not peri
 m = np.isfinite(vol) & np.isfinite(nawm_mvf)
 fig, ax = plt.subplots(figsize=(6, 5))
 ax.scatter(vol[m], nawm_mvf[m], s=40, c='#1f77b4', alpha=0.8)
