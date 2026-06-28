@@ -22,6 +22,7 @@ from scipy import stats
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from matplotlib.transforms import blended_transform_factory
 
 path = sys.argv[1] if len(sys.argv) > 1 else \
     '/home/tijn-saes/Documents/Internship/ME_GRE/analysis/roi_stats.csv'
@@ -62,20 +63,26 @@ fig.savefig(os.path.join(out_dir, 'cohort_iron_crossmethod.png'), dpi=150)
 
 # ---- Figure 2: Bland-Altman (offset) ----
 fig, axes = plt.subplots(1, 2, figsize=(11, 5))
+# paper-style (Sisman et al. 2025, Fig 4): blue points, red MEAN / +-1.96SD lines, each labelled
 for ax, (label, mimm_c, cs_c) in zip(axes, CHANNELS):
     a1 = df[mimm_c].values; a2 = df[cs_c].values
     m = np.isfinite(a1) & np.isfinite(a2); a1, a2 = a1[m], a2[m]
     mean = (a1 + a2) / 2; diff = a1 - a2          # MIMM - chi-sep
     bias = diff.mean(); sd = diff.std(ddof=1)
-    ax.scatter(mean, diff, s=26, c='#d62728' if 'Iron' in label else '#1f77b4', alpha=0.75)
-    ax.axhline(bias, color='k', lw=1.4)
-    ax.axhline(bias + 1.96 * sd, color='0.5', ls='--', lw=1)
-    ax.axhline(bias - 1.96 * sd, color='0.5', ls='--', lw=1)
-    ax.text(0.04, 0.94, f'offset (bias) = {bias:+.4f} ppm\nLoA ± {1.96*sd:.4f}',
-            transform=ax.transAxes, va='top', fontsize=10,
-            bbox=dict(boxstyle='round', fc='white', ec='0.7'))
-    ax.set_xlabel('mean of MIMM & chi-sep  (ppm)')
-    ax.set_ylabel('MIMM − chi-sep  (ppm)')
+    hi, lo = bias + 1.96 * sd, bias - 1.96 * sd
+    ax.scatter(mean, diff, s=26, c='#1f77b4', alpha=0.75)
+    ax.axhline(bias, color='#d62728', lw=1.8)
+    ax.axhline(hi, color='#d62728', ls='--', lw=1.3)
+    ax.axhline(lo, color='#d62728', ls='--', lw=1.3)
+    tform = blended_transform_factory(ax.transAxes, ax.transData)
+    ax.text(0.99, bias, f'MEAN: {bias:+.4f}', transform=tform, va='bottom', ha='right',
+            color='#d62728', fontsize=9)
+    ax.text(0.99, hi, f'+1.96SD: {hi:+.4f}', transform=tform, va='bottom', ha='right',
+            color='#d62728', fontsize=9)
+    ax.text(0.99, lo, f'-1.96SD: {lo:+.4f}', transform=tform, va='top', ha='right',
+            color='#d62728', fontsize=9)
+    ax.set_xlabel('Mean of MIMM & chi-sep  (ppm)')
+    ax.set_ylabel('MIMM - chi-sep  (ppm)')
     ax.set_title(label); ax.grid(alpha=0.25)
 fig.suptitle(f'Systematic susceptibility offset, MIMM vs chi-separation  —  {scope}', fontsize=12)
 fig.tight_layout(rect=[0, 0, 1, 0.95])
