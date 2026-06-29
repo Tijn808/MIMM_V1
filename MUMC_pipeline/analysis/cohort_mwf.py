@@ -69,6 +69,17 @@ subjects, nawm_mvf, nawm_mwf = [], [], []
 roi_mvf = {r: [] for r in range(1, JHU_N + 1)}   # per-ROI list of per-subject means
 roi_mwf = {r: [] for r in range(1, JHU_N + 1)}
 
+# the 10 white-matter ROIs of Sisman et al. (mapped to JHU labels; L+R combined)
+PAPER_WM = {
+    'Genu of corpus callosum': [3], 'Body of corpus callosum': [4],
+    'Splenium of corpus callosum': [5], 'Corticospinal tract': [7, 8],
+    'Anterior limb of internal capsule': [17, 18], 'Superior corona radiata': [25, 26],
+    'Posterior thalamic radiation (optic radiation)': [29, 30], 'External capsule': [33, 34],
+    'Cingulum (cingulate gyrus)': [35, 36], 'Superior longitudinal fasciculus': [41, 42],
+}
+paper_mvf = {k: [] for k in PAPER_WM}
+paper_mwf = {k: [] for k in PAPER_WM}
+
 for mp in sorted(glob.glob(os.path.join(results_dir, '*', 'grase', 'MWF.nii.gz'))):
     d = os.path.dirname(os.path.dirname(mp)); sid = os.path.basename(d)
     mwf = load(mp)
@@ -94,6 +105,11 @@ for mp in sorted(glob.glob(os.path.join(results_dir, '*', 'grase', 'MWF.nii.gz')
         if m.sum() >= 20:
             roi_mvf[roi].append(float(mvf[m].mean()))
             roi_mwf[roi].append(float(mwf[m].mean()))
+    for name, labs in PAPER_WM.items():           # L+R combined paper ROIs
+        m = nawm & np.isin(labels, labs)
+        if m.sum() >= 20:
+            paper_mvf[name].append(float(mvf[m].mean()))
+            paper_mwf[name].append(float(mwf[m].mean()))
     print(f'{sid}: NAWM {int(nawm.sum())} vox')
 
 n_sub = len(subjects)
@@ -148,22 +164,42 @@ out = os.path.join(out_dir, 'cohort_mvf_vs_mwf.png')
 fig.savefig(out, dpi=150)
 print(f'saved: {out}')
 
-# --- per-region bias table (the rest of the regions) ---
-rows = []
-for roi in range(1, JHU_N + 1):
-    a = np.array(roi_mvf[roi]); bb = np.array(roi_mwf[roi])
+def paired_stats(a, bb):
+    """paired bias (a-b), SD, t-test p, Cohen's d for paired per-subject means."""
+    dd = a - bb; bias = dd.mean(); sd = dd.std(ddof=1)
+    p = stats.ttest_rel(a, bb).pvalue if len(a) >= 6 else float('nan')
+    return bias, sd, p, (bias / sd if sd > 0 else float('nan'))
+
+
+def write_bias_table(path, items):
+    with open(path, 'w', newline='') as f:
+        w = csv.writer(f)
+        w.writerow(['tract', 'n_subj', 'MVF_mean', 'MWF_mean', 'bias_MVF_minus_MWF',
+                    'bias_SD', 'paired_p', 'cohens_d'])
+        for nm, a, bb in items:
+            if len(a) < 4:
+                continue
+            bias, sd, p, dv = paired_stats(a, bb)
+            w.writerow([nm, len(a), f'{a.mean():.4f}', f'{bb.mean():.4f}',
+                        f'{bias:+.4f}', f'{sd:.4f}', f'{p:.4g}', f'{dv:+.2f}'])
+
+
+# --- full 50-label per-region table (appendix) ---
+full = [(JHU_NAMES[r - 1], np.array(roi_mvf[r]), np.array(roi_mwf[r])) for r in range(1, JHU_N + 1)]
+tbl = os.path.join(out_dir, 'cohort_mwf_region_bias.csv')
+write_bias_table(tbl, full)
+print(f'saved: {tbl}  (50 labels, with paired p + Cohen\'s d)')
+
+# --- Sisman et al. 10 WM ROIs, L+R combined, with paired test (the body table) ---
+paper = [(nm, np.array(paper_mvf[nm]), np.array(paper_mwf[nm])) for nm in PAPER_WM]
+ptbl = os.path.join(out_dir, 'cohort_mwf_paper_wm.csv')
+write_bias_table(ptbl, paper)
+print(f'saved: {ptbl}  (10 WM ROIs, L+R combined)')
+print('\nSisman WM ROIs (MVF vs MWF, paired):')
+for nm, a, bb in paper:
     if len(a) < 4:
         continue
-    d = a - bb
-    rows.append((JHU_NAMES[roi - 1], len(a), a.mean(), bb.mean(), d.mean(), d.std(ddof=1)))
-
-tbl = os.path.join(out_dir, 'cohort_mwf_region_bias.csv')
-with open(tbl, 'w', newline='') as f:
-    w = csv.writer(f)
-    w.writerow(['tract', 'n_subj', 'MVF_mean', 'MWF_mean', 'bias_MVF_minus_MWF', 'bias_SD'])
-    for nm, n, mv, mw, bi, bsd in rows:
-        w.writerow([nm, n, f'{mv:.4f}', f'{mw:.4f}', f'{bi:+.4f}', f'{bsd:.4f}'])
-print(f'saved: {tbl}  ({len(rows)} tracts)')
-print('\nLargest per-region bias (|MVF - MWF|), top 10:')
-for nm, n, mv, mw, bi, bsd in sorted(rows, key=lambda x: -abs(x[4]))[:10]:
-    print(f'  {nm:42s} MVF {mv:.3f}  MWF {mw:.3f}  bias {bi:+.4f} +/- {bsd:.4f}  (n={n})')
+    bias, sd, p, dv = paired_stats(a, bb)
+    star = ' *' if (np.isfinite(p) and p < 0.05) else ''
+    print(f'  {nm:46s} MVF {a.mean():.3f}  MWF {bb.mean():.3f}  '
+          f'bias {bias:+.4f} (p={p:.2g}, d={dv:+.2f}){star}')
