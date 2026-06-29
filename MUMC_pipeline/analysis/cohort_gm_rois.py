@@ -20,6 +20,7 @@ import sys, os, glob, subprocess
 import csv
 import numpy as np
 import nibabel as nib
+from scipy import stats
 
 FSLDIR = os.environ.get('FSLDIR', os.path.expanduser('~/fsl'))
 HO = os.path.join(FSLDIR, 'data', 'atlases', 'HarvardOxford',
@@ -53,7 +54,7 @@ def first_existing(d, *rels):
     return None
 
 
-agg = {k: {'MVF': [], 'MWF': [], 'chi_pos': []} for k in GM}
+agg = {k: [] for k in GM}   # per subject: (MVF, MWF, chi_pos)
 n_done = 0
 for ad in sorted(glob.glob(os.path.join(results_dir, '*', 'atlas', 'mni2subj_warp.nii.gz'))):
     d = os.path.dirname(os.path.dirname(ad)); sid = os.path.basename(d)
@@ -83,12 +84,11 @@ for ad in sorted(glob.glob(os.path.join(results_dir, '*', 'atlas', 'mni2subj_war
     for name, (lL, lR) in GM.items():
         m = (ho == lL) | (ho == lR)
         if m.sum() < 20:
-            continue
-        agg[name]['MVF'].append(float(np.nanmean(mvf[m])))
-        if mwf is not None:
-            agg[name]['MWF'].append(float(np.nanmean(mwf[m])))
-        if chip is not None:
-            agg[name]['chi_pos'].append(float(np.nanmean(chip[m])))
+            agg[name].append((np.nan, np.nan, np.nan)); continue
+        agg[name].append((
+            float(np.nanmean(mvf[m])),
+            float(np.nanmean(mwf[m])) if mwf is not None else np.nan,
+            float(np.nanmean(chip[m])) if chip is not None else np.nan))
     n_done += 1
     print(f'{sid}: GM ROIs extracted')
 
@@ -98,20 +98,39 @@ if n_done == 0:
 out = os.path.join(out_dir, 'cohort_gm_rois.csv')
 with open(out, 'w', newline='') as f:
     w = csv.writer(f)
-    w.writerow(['structure', 'n_subj', 'MVF_mean', 'MWF_mean', 'chi_pos_mean'])
+    w.writerow(['structure', 'n_subj', 'MVF_mean', 'MWF_mean', 'chi_pos_mean',
+                'bias_MVF_minus_MWF', 'bias_SD', 'paired_p', 'cohens_d'])
     for name in GM:
-        mvf = agg[name]['MVF']; mwf = agg[name]['MWF']; chip = agg[name]['chi_pos']
-        if not mvf:
+        arr = np.array(agg[name], dtype=float)
+        if arr.size == 0 or not np.isfinite(arr[:, 0]).any():
             continue
-        w.writerow([name, len(mvf), f'{np.mean(mvf):.4f}',
-                    f'{np.mean(mwf):.4f}' if mwf else 'NA',
-                    f'{np.mean(chip):.4f}' if chip else 'NA'])
+        mvf, mwf, chi = arr[:, 0], arr[:, 1], arr[:, 2]
+        pair = np.isfinite(mvf) & np.isfinite(mwf)
+        if pair.sum() >= 6:
+            diff = mvf[pair] - mwf[pair]
+            bias = diff.mean(); sd = diff.std(ddof=1)
+            p = stats.ttest_rel(mvf[pair], mwf[pair]).pvalue
+            dval = bias / sd
+        else:
+            bias = sd = p = dval = np.nan
+        w.writerow([name, int(np.isfinite(mvf).sum()),
+                    f'{np.nanmean(mvf):.4f}', f'{np.nanmean(mwf):.4f}',
+                    f'{np.nanmean(chi):.4f}', f'{bias:+.4f}', f'{sd:.4f}',
+                    f'{p:.4g}', f'{dval:+.2f}'])
 print(f'\nsaved: {out}  ({n_done} subjects)')
-print('\nGM ROI cohort means (MVF / MWF / chi+):')
+print('\nGM ROI: MIMM MVF vs MWF (paired t-test) and iron (chi+):')
 for name in GM:
-    mvf = agg[name]['MVF']; mwf = agg[name]['MWF']; chip = agg[name]['chi_pos']
-    if not mvf:
+    arr = np.array(agg[name], dtype=float)
+    if arr.size == 0 or not np.isfinite(arr[:, 0]).any():
         continue
-    mwf_s = f'{np.mean(mwf):.3f}' if mwf else 'NA'
-    chi_s = f'{np.mean(chip):.4f}' if chip else 'NA'
-    print(f'  {name:16s} MVF {np.mean(mvf):.3f}   MWF {mwf_s}   chi+ {chi_s}')
+    mvf, mwf, chi = arr[:, 0], arr[:, 1], arr[:, 2]
+    pair = np.isfinite(mvf) & np.isfinite(mwf)
+    if pair.sum() >= 6:
+        diff = mvf[pair] - mwf[pair]
+        p = stats.ttest_rel(mvf[pair], mwf[pair]).pvalue
+        d = diff.mean() / diff.std(ddof=1)
+        star = ' *' if p < 0.05 else ''
+        print(f'  {name:16s} MVF {np.nanmean(mvf):.3f}  MWF {np.nanmean(mwf):.3f}  '
+              f'bias {diff.mean():+.3f} (p={p:.2g}, d={d:+.2f}){star}  chi+ {np.nanmean(chi):.4f}')
+    else:
+        print(f'  {name:16s} MVF {np.nanmean(mvf):.3f}  (no paired MWF)  chi+ {np.nanmean(chi):.4f}')
