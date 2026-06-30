@@ -117,30 +117,27 @@ def sem(a):
 
 
 fig, ax = plt.subplots(figsize=(8.5, 6))
-# faint per-lesion points behind the bars (jittered onto each bin)
-rng = np.random.default_rng(0)
-for j, s in enumerate(bins):
-    ax.scatter(x[j] - width/2 + rng.uniform(-0.06, 0.06, s.sum()), dmvf[s], s=10, c=ATLAS, alpha=0.25)
-    ax.scatter(x[j] + width/2 + rng.uniform(-0.06, 0.06, s.sum()), dmwf[s], s=10, c=LESION, alpha=0.25)
+# bars = bin-mean contrast +- SEM (per-lesion scatter omitted: extreme small-lesion
+# partial-volume outliers otherwise compress the bars into an unreadable strip)
 mvf_means = [dmvf[s].mean() for s in bins]; mwf_means = [dmwf[s].mean() for s in bins]
 ax.bar(x - width/2, mvf_means, width, yerr=[sem(dmvf[s]) for s in bins],
-       capsize=5, color=ATLAS, alpha=0.85, label='MIMM MVF (1 mm iso)')
+       capsize=5, color=ATLAS, alpha=0.9, label='MIMM MVF (1 mm iso)')
 ax.bar(x + width/2, mwf_means, width, yerr=[sem(dmwf[s]) for s in bins],
-       capsize=5, color=LESION, alpha=0.85, label='MWF (1.5x1.5x4 mm)')
+       capsize=5, color=LESION, alpha=0.9, label='MWF (1.5x1.5x4 mm)')
 # per-bin MVF-vs-MWF paired test, annotated above the taller bar
 ymax = max(max(mvf_means), max(mwf_means))
 for j, s in enumerate(bins):
     p = stats.ttest_rel(dmvf[s], dmwf[s]).pvalue
     star = 'n.s.' if p >= 0.05 else ('p < 0.001' if p < 1e-3 else f'p = {p:.3f}')
-    ax.text(x[j], max(mvf_means[j], mwf_means[j]) + 0.06 * ymax,
+    ax.text(x[j], max(mvf_means[j], mwf_means[j]) + 0.04 * ymax,
             f'n = {int(s.sum())}\n{star}', ha='center', va='bottom', fontsize=10)
 ax.axhline(0, color='k', lw=0.8)
 ax.set_xticks(x); ax.set_xticklabels(labels)
-ax.set_ylabel('drop vs perilesional NAWM (%)')
+ax.set_ylabel('contrast vs perilesional NAWM (% drop)')
 ax.set_title(f'Lesion contrast vs lesion size, by acquisition resolution\n'
              f'{n_conf} FLAIR-confirmed lesions ({n_rej_flair} rejected as not hyperintense)')
-ax.set_ylim(top=ymax * 1.3)
-ax.legend(loc='upper left')
+ax.set_ylim(-2, ymax * 1.45)
+ax.legend(loc='lower right')
 fig.tight_layout()
 fig.savefig(os.path.join(OUT, 'fig4_resolution.png'))
 print(f'saved: {os.path.join(OUT, "fig4_resolution.png")}  ({n_conf} lesions)')

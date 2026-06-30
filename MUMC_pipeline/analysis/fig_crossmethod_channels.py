@@ -69,21 +69,19 @@ def scatter_r(ax, x, y, color, label):
 
 fig, (axM, axI) = plt.subplots(1, 2, figsize=(11.5, 5))
 
-# --- myelin panel: MVF (Basic + Atlas) vs |chi-| ---
+# --- myelin panel: MVF (Atlas) vs |chi-| ---
 chineg = np.abs(col('chi_neg_chisep_mean'))
-txt = []
-for var, color in [('basic', '#ff7f0e'), ('atlas', '#1f77b4')]:
-    mvf = col(f'MVF_{var}_mean')
-    if mvf is None:
-        continue
-    r, p = scatter_r(axM, chineg, mvf, color, var.capitalize())
-    txt.append(f'{var.capitalize()} r = {r:.2f} ' + ('(p < 0.001)' if p < 1e-3 else f'(p = {p:.3f})'))
-axM.text(0.04, 0.96, '\n'.join(txt), transform=axM.transAxes, va='top',
+mvf = col('MVF_atlas_mean')
+if mvf is None:
+    sys.exit('MVF_atlas_mean column missing from roi_stats.csv')
+r, p = scatter_r(axM, chineg, mvf, '#1f77b4', None)
+axM.text(0.04, 0.96, f'r = {r:.2f}\n' + ('(p < 0.001)' if p < 1e-3 else f'(p = {p:.3f})'),
+         transform=axM.transAxes, va='top',
          fontsize=10, bbox=dict(boxstyle='round', fc='white', ec='0.7'))
 axM.set_xlabel('|chi-|  chi-separation  (ppm)')
 axM.set_ylabel('MVF  MIMM  (fraction)')
 axM.set_title('Myelin:  MIMM MVF vs chi-separation')
-axM.grid(alpha=0.25); axM.legend(loc='lower right')
+axM.grid(alpha=0.25)
 
 # --- iron panel: MIMM chi_iron (Atlas) vs chi+ ---
 chipos, chiiron = col('chi_pos_chisep_mean'), col('chi_iron_atlas_mean')
