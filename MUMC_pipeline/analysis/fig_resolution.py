@@ -108,20 +108,43 @@ dmvf = np.array([l[1] for l in lesions])
 dmwf = np.array([l[2] for l in lesions])
 q1, q2 = np.quantile(vol, [1/3, 2/3])
 bins = [(vol <= q1), (vol > q1) & (vol <= q2), (vol > q2)]
-xb = [vol[s].mean() for s in bins]
+labels = [f'small\n(<= {q1:.2f} mL)', f'medium\n({q1:.2f}-{q2:.2f} mL)', f'large\n(> {q2:.2f} mL)']
+x = np.arange(3); width = 0.36
+
+
+def sem(a):
+    return a.std(ddof=1) / np.sqrt(len(a)) if len(a) > 1 else 0.0
+
 
 fig, ax = plt.subplots(figsize=(8.5, 6))
-ax.scatter(vol, dmvf, s=16, c=ATLAS, alpha=0.4)
-ax.scatter(vol, dmwf, s=16, c=LESION, alpha=0.4)
-ax.plot(xb, [dmvf[s].mean() for s in bins], '-o', color=ATLAS, lw=2.4, ms=9, label='MIMM MVF (binned)')
-ax.plot(xb, [dmwf[s].mean() for s in bins], '-o', color=LESION, lw=2.4, ms=9, label='MWF (binned)')
+# faint per-lesion points behind the bars (jittered onto each bin)
+rng = np.random.default_rng(0)
+for j, s in enumerate(bins):
+    ax.scatter(x[j] - width/2 + rng.uniform(-0.06, 0.06, s.sum()), dmvf[s], s=10, c=ATLAS, alpha=0.25)
+    ax.scatter(x[j] + width/2 + rng.uniform(-0.06, 0.06, s.sum()), dmwf[s], s=10, c=LESION, alpha=0.25)
+mvf_means = [dmvf[s].mean() for s in bins]; mwf_means = [dmwf[s].mean() for s in bins]
+ax.bar(x - width/2, mvf_means, width, yerr=[sem(dmvf[s]) for s in bins],
+       capsize=5, color=ATLAS, alpha=0.85, label='MIMM MVF (1 mm iso)')
+ax.bar(x + width/2, mwf_means, width, yerr=[sem(dmwf[s]) for s in bins],
+       capsize=5, color=LESION, alpha=0.85, label='MWF (1.5x1.5x4 mm)')
+# per-bin MVF-vs-MWF paired test, annotated above the taller bar
+ymax = max(max(mvf_means), max(mwf_means))
+for j, s in enumerate(bins):
+    p = stats.ttest_rel(dmvf[s], dmwf[s]).pvalue
+    star = 'n.s.' if p >= 0.05 else ('p < 0.001' if p < 1e-3 else f'p = {p:.3f}')
+    ax.text(x[j], max(mvf_means[j], mwf_means[j]) + 0.06 * ymax,
+            f'n = {int(s.sum())}\n{star}', ha='center', va='bottom', fontsize=10)
 ax.axhline(0, color='k', lw=0.8)
-ax.set_xscale('log')
-ax.set_xlabel('lesion volume (mL, log scale)')
+ax.set_xticks(x); ax.set_xticklabels(labels)
 ax.set_ylabel('drop vs perilesional NAWM (%)')
-ax.set_title(f'Lesion detection vs size: MIMM resolves, MWF blurs\n'
+ax.set_title(f'Lesion contrast vs lesion size, by acquisition resolution\n'
              f'{n_conf} FLAIR-confirmed lesions ({n_rej_flair} rejected as not hyperintense)')
-ax.legend()
+ax.set_ylim(top=ymax * 1.3)
+ax.legend(loc='upper left')
 fig.tight_layout()
 fig.savefig(os.path.join(OUT, 'fig4_resolution.png'))
 print(f'saved: {os.path.join(OUT, "fig4_resolution.png")}  ({n_conf} lesions)')
+for j, s in enumerate(bins):
+    print(f'  {labels[j].splitlines()[0]:7s} n={int(s.sum()):3d}  '
+          f'MVF {dmvf[s].mean():+.1f}%  MWF {dmwf[s].mean():+.1f}%  '
+          f'p={stats.ttest_rel(dmvf[s], dmwf[s]).pvalue:.2g}')

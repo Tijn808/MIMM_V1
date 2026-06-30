@@ -28,7 +28,7 @@ mpl.rcParams.update({
     'xtick.labelsize': 11, 'ytick.labelsize': 11, 'legend.fontsize': 11,
     'savefig.dpi': 200, 'axes.grid': True, 'grid.alpha': 0.25, 'grid.linestyle': '--',
 })
-LESION, NAWM = '#d62728', '#2ca02c'
+LESION, NAWM, NAWM_WHOLE = '#d62728', '#2ca02c', '#98df8a'
 GAP, WIDTH = 2, 3          # perilesional shell: 2 voxels gap, 3 voxels wide
 MIN_LES, MIN_PERI = 50, 50
 
@@ -67,9 +67,10 @@ for ld in sorted(glob.glob(os.path.join(RESULTS, '*', 'lesion', 'lesion_mask.nii
     if peri.sum() < MIN_PERI:
         continue
     mvf = mvf.astype(float); fvf = fvf.astype(float); avf = fvf - mvf
-    rows.append({'MVF (myelin)': (mean(mvf, peri), mean(mvf, lesion)),
-                 'AVF (axon)':   (mean(avf, peri), mean(avf, lesion)),
-                 'FVF (fibre)':  (mean(fvf, peri), mean(fvf, lesion))})
+    # whole-brain NAWM, location-matched perilesional shell, lesion
+    rows.append({'MVF (myelin)': (mean(mvf, nawm), mean(mvf, peri), mean(mvf, lesion)),
+                 'AVF (axon)':   (mean(avf, nawm), mean(avf, peri), mean(avf, lesion)),
+                 'FVF (fibre)':  (mean(fvf, nawm), mean(fvf, peri), mean(fvf, lesion))})
 
 n = len(rows)
 if n < 3:
@@ -77,20 +78,24 @@ if n < 3:
 
 fig, axes = plt.subplots(1, 3, figsize=(13, 5))
 for ax, label in zip(axes, ['MVF (myelin)', 'AVF (axon)', 'FVF (fibre)']):
-    peri = np.array([r[label][0] for r in rows]); les = np.array([r[label][1] for r in rows])
-    m = np.isfinite(peri) & np.isfinite(les); peri, les = peri[m], les[m]
-    for a, b in zip(peri, les):
-        ax.plot([0, 1], [a, b], '-', color='0.65', lw=0.9, alpha=0.7)
-    ax.plot([0]*len(peri), peri, 'o', color=NAWM, ms=6)
-    ax.plot([1]*len(les), les, 'o', color=LESION, ms=6)
-    for xi, v in [(0, peri), (1, les)]:
+    whole = np.array([r[label][0] for r in rows])
+    peri = np.array([r[label][1] for r in rows]); les = np.array([r[label][2] for r in rows])
+    m = np.isfinite(whole) & np.isfinite(peri) & np.isfinite(les)
+    whole, peri, les = whole[m], peri[m], les[m]
+    for a, b, c in zip(whole, peri, les):
+        ax.plot([0, 1, 2], [a, b, c], '-', color='0.65', lw=0.9, alpha=0.7)
+    ax.plot([0]*len(whole), whole, 'o', color=NAWM_WHOLE, ms=6)
+    ax.plot([1]*len(peri), peri, 'o', color=NAWM, ms=6)
+    ax.plot([2]*len(les), les, 'o', color=LESION, ms=6)
+    for xi, v in [(0, whole), (1, peri), (2, les)]:
         ax.errorbar(xi, v.mean(), yerr=v.std(ddof=1)/np.sqrt(len(v)),
                     fmt='_', color='k', ms=26, capsize=6, lw=2.2)
     p = stats.ttest_rel(les, peri).pvalue
     pct = 100 * (les.mean() - peri.mean()) / peri.mean()
     d = (les - peri).mean() / (les - peri).std(ddof=1)
-    ax.set_xticks([0, 1]); ax.set_xticklabels(['peri-NAWM', 'lesion']); ax.set_xlim(-0.4, 1.4)
-    ax.set_title(f'{label}\n{pct:+.1f}%, '
+    ax.set_xticks([0, 1, 2])
+    ax.set_xticklabels(['NAWM\n(whole)', 'NAWM\n(peri)', 'lesion']); ax.set_xlim(-0.4, 2.4)
+    ax.set_title(f'{label}   lesion vs peri-NAWM\n{pct:+.1f}%, '
                  + ('p < 0.001' if p < 1e-3 else f'p = {p:.3f}') + f', d = {d:+.2f}')
 fig.suptitle(f'Lesion compartment decomposition vs perilesional NAWM (n = {n})', fontsize=15)
 fig.tight_layout(rect=[0, 0, 1, 0.94])
