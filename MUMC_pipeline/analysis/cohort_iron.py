@@ -3,7 +3,7 @@
 Iron-channel analyses from the per-subject roi_stats.csv files:
 
 1. Cross-method validation of MIMM's susceptibility channels against chi-sep,
-   per ROI (cohort mean):
+   one whole-white-matter voxel-weighted mean per subject (subject = unit):
      - iron:   MIMM chi_iron  vs chi-sep chi_pos (chi+)
      - myelin: MIMM chi_myelin vs chi-sep chi_neg (chi-)
 2. The systematic susceptibility offset between MIMM and chi-sep, via Bland-Altman
@@ -24,17 +24,36 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.transforms import blended_transform_factory
 
+def wmean(vals, w):
+    """Voxel-weighted whole-WM mean over a subject's ROIs, ignoring NaN."""
+    vals = np.asarray(vals, float); w = np.asarray(w, float)
+    m = np.isfinite(vals) & np.isfinite(w) & (w > 0)
+    return float(np.sum(vals[m] * w[m]) / np.sum(w[m])) if m.any() else np.nan
+
+
 path = sys.argv[1] if len(sys.argv) > 1 else \
     '/home/tijn-saes/Documents/Internship/ME_GRE/analysis/roi_stats.csv'
 if os.path.isdir(path):
+    # One point per SUBJECT: whole-white-matter voxel-weighted mean of each channel
+    # (matches fig_crossmethod_channels.py; the subject is the unit of analysis, not
+    # the ROI, so the offset is not pseudoreplicated across tracts).
     files = sorted(glob.glob(os.path.join(path, '*', 'analysis', 'roi_stats.csv')))
-    df = pd.concat([pd.read_csv(f) for f in files], ignore_index=True)
-    df = df.groupby('ROI_name', as_index=False).mean(numeric_only=True)
-    scope = f'cohort (n = {len(files)})'
+    CH_COLS = ['chi_iron_atlas_mean', 'chi_pos_chisep_mean',
+               'chi_myelin_atlas_mean', 'chi_neg_chisep_mean']
+    rows = []
+    for f in files:
+        d = pd.read_csv(f)
+        if 'n_voxels' not in d.columns:
+            continue
+        w = d['n_voxels'].values
+        rows.append({c: wmean(d[c].values, w) for c in CH_COLS if c in d.columns})
+    df = pd.DataFrame(rows)
+    scope = f'cohort, whole-WM mean per subject (n = {len(df)})'
     out_dir = os.path.join(path, 'cohort_analysis'); os.makedirs(out_dir, exist_ok=True)
+    unit = 'subjects'
 else:
-    df = pd.read_csv(path); scope = 'single subject'
-    out_dir = os.path.dirname(path)
+    df = pd.read_csv(path); scope = 'single subject, per ROI'
+    out_dir = os.path.dirname(path); unit = 'ROIs'
 
 # (label, MIMM column, chi-sep column)
 CHANNELS = [
@@ -57,7 +76,7 @@ for ax, (label, mimm_c, cs_c) in zip(axes, CHANNELS):
     ax.set_xlabel(f'chi-separation  {cs_c.split("_")[1]}  (ppm)')
     ax.set_ylabel(f'MIMM  {mimm_c.split("_")[1]}  (ppm)')
     ax.set_title(label); ax.grid(alpha=0.25)
-fig.suptitle(f'MIMM vs chi-separation susceptibility, per JHU WM ROI  —  {scope}', fontsize=12)
+fig.suptitle(f'MIMM vs chi-separation susceptibility  —  {scope}', fontsize=12)
 fig.tight_layout(rect=[0, 0, 1, 0.95])
 fig.savefig(os.path.join(out_dir, 'cohort_iron_crossmethod.png'), dpi=150)
 
@@ -96,5 +115,5 @@ for label, mimm_c, cs_c in CHANNELS:
     mean_ba = (x + y) / 2
     ba_slope, _ = np.polyfit(mean_ba, diff, 1)
     print(f'{label}: r = {r:.3f},  bias = {bias:+.4f} ppm,  '
-          f'BA slope = {ba_slope:+.3f} ppm/ppm  (n={len(x)} ROIs)')
+          f'BA slope = {ba_slope:+.3f} ppm/ppm  (n={len(x)} {unit})')
 print(f'saved figures to {out_dir}')
