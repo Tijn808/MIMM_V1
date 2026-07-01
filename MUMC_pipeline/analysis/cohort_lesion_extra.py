@@ -112,11 +112,11 @@ nawm_mvf = np.array([r.get('nawm_mvf_global', np.nan) for r in rows])   # global
 m = np.isfinite(vol) & np.isfinite(nawm_mvf)
 fig, ax = plt.subplots(figsize=(6, 5))
 ax.scatter(vol[m], nawm_mvf[m], s=40, c='#1f77b4', alpha=0.8)
-rr, pp = stats.pearsonr(vol[m], nawm_mvf[m])
+rr, pp = stats.spearmanr(vol[m], nawm_mvf[m])   # Spearman: lesion volume is skewed, matches clinical analysis
 if m.sum() > 2:
     b, a = np.polyfit(vol[m], nawm_mvf[m], 1)
     xs = np.linspace(vol[m].min(), vol[m].max(), 100); ax.plot(xs, b*xs+a, 'k--', lw=1.3)
-ax.text(0.04, 0.06, f'r = {rr:.2f}, ' + ('p < 0.001' if pp < 1e-3 else f'p = {pp:.3f}')
+ax.text(0.04, 0.06, f'rho = {rr:.2f}, ' + ('p < 0.001' if pp < 1e-3 else f'p = {pp:.3f}')
         + f'  (n={m.sum()})', transform=ax.transAxes,
         bbox=dict(boxstyle='round', fc='white', ec='0.7'))
 ax.set_xlabel('Lesion volume (mL)'); ax.set_ylabel('NAWM MVF (Atlas)')
@@ -134,5 +134,5 @@ for label, _, _ in MAPS:
           f'(p={stats.ttest_rel(nawm[m1],full[m1]).pvalue:.2g}),  '
           f'eroded {100*(erod[m2].mean()-nawm[m2].mean())/nawm[m2].mean():+.1f}% '
           f'(p={stats.ttest_rel(nawm[m2],erod[m2]).pvalue:.2g})')
-print(f'Lesion burden vs NAWM MVF: r = {rr:.3f}, p = {pp:.3g}')
+print(f'Lesion burden vs NAWM MVF: Spearman rho = {rr:.3f}, p = {pp:.3g}')
 print(f'saved figures to {out_dir}')
