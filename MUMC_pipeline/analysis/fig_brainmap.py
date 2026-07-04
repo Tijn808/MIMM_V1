@@ -125,7 +125,7 @@ for ax, (title, img, cmap, (lo, hi), cblab) in zip(axes, panels):
         cb = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.02)
         cb.ax.tick_params(labelsize=8)
 
-fig.suptitle(f'One lesion, four maps  (subject {sid}) -- '
+fig.suptitle('One lesion, four maps (representative patient) -- '
              'myelin and axon both drop inside the lesion (red)',
              color=C['text'], fontsize=13.5)
 fig.tight_layout(rect=[0, 0, 1, 0.93])
