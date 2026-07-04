@@ -56,7 +56,7 @@ AREA_LO, AREA_HI = 25, 450        # voxels on the shown slice: discrete, not con
 
 
 def score_candidates(les3d, fa3d):
-    """yield (score, z, area, wm_ring_frac) for each connected lesion, best slice."""
+    """yield (score, z, area, wm_ring_frac, comp2d) for each connected lesion."""
     lab, n = ndimage.label(les3d)
     out = []
     for k in range(1, n + 1):
@@ -72,7 +72,7 @@ def score_candidates(les3d, fa3d):
         fa2 = fa3d[:, :, z] if fa3d is not None else None
         wm = float(np.mean(fa2[ring] > 0.20)) if (fa2 is not None and ring.sum()) else 0.0
         # reward discrete WM-surrounded lesions; wm_ring_frac dominates
-        out.append((area * (wm ** 2), z, area, wm))
+        out.append((area * (wm ** 2), z, area, wm, m2.copy()))
     return out
 
 
@@ -88,19 +88,25 @@ for ld in sorted(glob.glob(os.path.join(RES, '*', 'lesion', 'lesion_mask.nii.gz'
     if les.sum() < 30:
         continue
     fa = load(p['fa'])
-    for score, z, area, wm in score_candidates(les, fa):
-        cands.append((score, sid, d, z, area, wm))
+    for score, z, area, wm, comp2d in score_candidates(les, fa):
+        cands.append((score, sid, d, z, area, wm, comp2d))
 
 if not cands:
     sys.exit('no discrete WM lesion found (try relaxing AREA_LO/AREA_HI)')
-cands.sort(reverse=True)
+cands.sort(key=lambda c: c[0], reverse=True)
 print('[shortlist] top discrete WM lesions (subject, z, area_vox, wm_ring_frac):')
-for sc, s, _dd, zz, ar, wm in cands[:8]:
-    print(f'    {s}  z={zz}  area={ar:.0f}  wm_ring={wm:.2f}')
-_, sid, d, z, _, _ = cands[0]
+for c in cands[:8]:
+    print(f'    {c[1]}  z={c[3]}  area={c[4]:.0f}  wm_ring={c[5]:.2f}')
+
+# choose: if a z is forced, prefer the scored component on that exact slice
+chosen = cands[0]
+if FORCE_Z is not None:
+    match = [c for c in cands if c[3] == FORCE_Z]
+    chosen = match[0] if match else cands[0]
+_, sid, d, z, _, _, foc = chosen
 if FORCE_Z is not None:
     z = FORCE_Z
-print(f'[pick] subject={sid}  z={z}')
+print(f'[pick] subject={sid}  z={z}  (one lesion isolated)')
 
 p = subj_paths(d)
 mvf = load(p['mvf']); fvf = load(p['fvf']); mwf = load(p['mwf'])
@@ -112,16 +118,18 @@ if brain is not None:
     for v in (mvf, avf, mwf):
         v[~m] = np.nan
 
-# guard: if the chosen slice has no lesion (e.g. a forced z that isn't a lesion
-# slice), fall back to this subject's slice with the most lesion voxels.
-if les[:, :, z].sum() == 0:
-    z_fallback = int(np.argmax(les.sum(axis=(0, 1))))
-    print(f'[warn] z={z} has no lesion for {sid}; using best lesion slice z={z_fallback}')
-    z = z_fallback
+# isolate ONE lesion component on this slice (not every lesion on the slice), so
+# the outline and zoom show a single discrete lesion.
+if foc is None or foc.shape != les[:, :, z].shape or not (les[:, :, z] & foc).any():
+    lab2, n2 = ndimage.label(les[:, :, z])
+    if n2 == 0:
+        z = int(np.argmax(les.sum(axis=(0, 1)))); lab2, n2 = ndimage.label(les[:, :, z])
+    foc = lab2 == (1 + int(np.argmax([(lab2 == k).sum() for k in range(1, n2 + 1)])))
+    print(f'[info] isolated the largest lesion component on z={z}')
 
-# --- bounding box around the lesion on this slice, with margin, for a zoom ---
-ys, xs = np.where(les[:, :, z])
-pad = 22
+# --- tight bounding box around the single focused lesion, with margin ---
+ys, xs = np.where(foc)
+pad = 16
 r0, r1 = max(ys.min() - pad, 0), min(ys.max() + pad, mvf.shape[0])
 c0, c1 = max(xs.min() - pad, 0), min(xs.max() + pad, mvf.shape[1])
 
@@ -130,7 +138,7 @@ def sl(v):
     return np.rot90(v[r0:r1, c0:c1, z])   # radiological-ish display
 
 
-les_s = sl(les.astype(float))
+les_s = sl(foc.astype(float))   # outline only the single focused lesion
 
 # shared scale for the two myelin maps so MVF vs MWF is a fair visual comparison
 mvf_s, mwf_s, avf_s, fl_s = sl(mvf), sl(mwf), sl(avf), sl(flair)
@@ -165,8 +173,9 @@ for ext in ('png', 'svg'):
     fig.savefig(os.path.join(OUT, f'fig_brainmap.{ext}'), dpi=200, facecolor='white')
 print('saved', os.path.join(OUT, 'fig_brainmap.png'), '(+ .svg)')
 
-# quick numbers to quote: mean inside lesion vs a NAWM ring, this slice
-ring = ndimage.binary_dilation(les[:, :, z], iterations=5) & ~ndimage.binary_dilation(les[:, :, z], iterations=2)
+# quick numbers to quote: mean inside THIS lesion vs its perilesional ring
+ring = (ndimage.binary_dilation(foc, iterations=5) & ~ndimage.binary_dilation(foc, iterations=2)
+        & ~les[:, :, z])   # ring excludes any other lesion tissue
 for name, vol in [('MVF', mvf[:, :, z]), ('AVF', avf[:, :, z]), ('MWF', mwf[:, :, z])]:
-    li = np.nanmean(vol[les[:, :, z]]); ne = np.nanmean(vol[ring])
+    li = np.nanmean(vol[foc]); ne = np.nanmean(vol[ring])
     print(f'  {name}: lesion={li:.3f}  peri-NAWM={ne:.3f}  ({100*(li-ne)/ne:+.1f}%)')
