@@ -1,0 +1,140 @@
+#!/usr/bin/env python3
+"""
+fig_brainmap.py  --  a real brain slice for the defence deck.
+
+One representative lesion, shown as FLAIR | MIMM MVF | MIMM AVF | MWF, with the
+lesion outlined in red on every panel. MVF and MWF share a colour scale so they
+are directly comparable. The point (slide 10): inside the lesion BOTH the myelin
+(MVF) and the axon (AVF) compartment darken -- the tissue is atrophic, not just
+demyelinated -- and MIMM's MVF broadly tracks the independent MWF in the NAWM.
+
+All maps are already co-registered in ME-GRE space by the pipeline, so this is a
+pure rendering of the pipeline's own output (no numbers change).
+
+Usage:
+  python3 fig_brainmap.py <results_dir>                 # auto-pick best subject/slice
+  python3 fig_brainmap.py <results_dir> <subject> <z>   # force a subject and axial slice
+Output: <results_dir>/cohort_analysis/fig_brainmap.png (+ .svg)
+"""
+import sys, os, glob
+import numpy as np
+import nibabel as nib
+from scipy import ndimage
+import matplotlib as mpl
+mpl.use('Agg')
+import matplotlib.pyplot as plt
+from mimm_style import apply_style, C
+apply_style()
+
+if len(sys.argv) < 2:
+    sys.exit('usage: fig_brainmap.py <results_dir> [subject] [z]')
+RES = sys.argv[1]
+FORCE_SUBJ = sys.argv[2] if len(sys.argv) > 2 else None
+FORCE_Z    = int(sys.argv[3]) if len(sys.argv) > 3 else None
+OUT = os.path.join(RES, 'cohort_analysis'); os.makedirs(OUT, exist_ok=True)
+
+
+def load(p):
+    return np.asarray(nib.load(p).dataobj, dtype=float) if os.path.exists(p) else None
+
+
+def subj_paths(d):
+    return dict(mvf=os.path.join(d, 'mimm', 'MVF_Atlas.nii.gz'),
+                fvf=os.path.join(d, 'mimm', 'FVF_Atlas.nii.gz'),
+                mwf=os.path.join(d, 'grase', 'MWF.nii.gz'),
+                les=os.path.join(d, 'lesion', 'lesion_mask.nii.gz'),
+                flair=os.path.join(d, 'lesion', 'FLAIR_mgre.nii.gz'),
+                brain=os.path.join(d, 'qsm', 'brain_mask.nii.gz'))
+
+
+# --- choose the subject + axial slice with the largest, most compact lesion ---
+def best_slice(les):
+    """axial index with the most lesion voxels."""
+    areas = les.reshape(-1, les.shape[2]).sum(axis=0) if les.ndim == 3 else None
+    z = int(np.argmax(les.sum(axis=(0, 1))))
+    return z, float(les[:, :, z].sum())
+
+
+cands = []
+for ld in sorted(glob.glob(os.path.join(RES, '*', 'lesion', 'lesion_mask.nii.gz'))):
+    d = os.path.dirname(os.path.dirname(ld)); sid = os.path.basename(d)
+    if FORCE_SUBJ and sid != FORCE_SUBJ:
+        continue
+    p = subj_paths(d)
+    if not all(os.path.exists(p[k]) for k in ('mvf', 'fvf', 'mwf', 'les', 'flair')):
+        continue
+    les = (load(p['les']) > 0.5)
+    if les.sum() < 30:
+        continue
+    z, area = best_slice(les)
+    cands.append((area, sid, d, z))
+
+if not cands:
+    sys.exit('no subject has MVF+FVF+MWF+FLAIR+lesion all present')
+cands.sort(reverse=True)
+_, sid, d, z = cands[0]
+if FORCE_Z is not None:
+    z = FORCE_Z
+print(f'[pick] subject={sid}  z={z}  (of {len(cands)} candidates)')
+
+p = subj_paths(d)
+mvf = load(p['mvf']); fvf = load(p['fvf']); mwf = load(p['mwf'])
+avf = fvf - mvf
+les = (load(p['les']) > 0.5); flair = load(p['flair'])
+brain = load(p['brain'])
+if brain is not None:
+    m = brain > 0
+    for v in (mvf, avf, mwf):
+        v[~m] = np.nan
+
+# --- bounding box around the lesion on this slice, with margin, for a zoom ---
+ys, xs = np.where(les[:, :, z])
+pad = 22
+r0, r1 = max(ys.min() - pad, 0), min(ys.max() + pad, mvf.shape[0])
+c0, c1 = max(xs.min() - pad, 0), min(xs.max() + pad, mvf.shape[1])
+
+
+def sl(v):
+    return np.rot90(v[r0:r1, c0:c1, z])   # radiological-ish display
+
+
+les_s = sl(les.astype(float))
+
+# shared scale for the two myelin maps so MVF vs MWF is a fair visual comparison
+mvf_s, mwf_s, avf_s, fl_s = sl(mvf), sl(mwf), sl(avf), sl(flair)
+vmax_my = np.nanpercentile(np.concatenate([mvf_s[np.isfinite(mvf_s)],
+                                           mwf_s[np.isfinite(mwf_s)]]), 98)
+vmax_ax = np.nanpercentile(avf_s[np.isfinite(avf_s)], 98)
+
+panels = [
+    ('FLAIR',            fl_s,  'gray',  (np.nanpercentile(fl_s, 2), np.nanpercentile(fl_s, 98)), None),
+    ('MIMM  MVF (myelin)', mvf_s, 'magma', (0, vmax_my), 'fraction'),
+    ('MIMM  AVF (axon)',   avf_s, 'viridis', (0, vmax_ax), 'fraction'),
+    ('MWF  (T2-GRASE)',    mwf_s, 'magma', (0, vmax_my), 'fraction'),
+]
+
+fig, axes = plt.subplots(1, 4, figsize=(14.5, 4.6))
+for ax, (title, img, cmap, (lo, hi), cblab) in zip(axes, panels):
+    im = ax.imshow(img, cmap=cmap, vmin=lo, vmax=hi, interpolation='nearest')
+    ax.contour(les_s, levels=[0.5], colors=[C['highlight']], linewidths=1.6)
+    ax.set_title(title, color=C['text'], fontsize=12, pad=6)
+    ax.set_xticks([]); ax.set_yticks([])
+    for s in ax.spines.values():
+        s.set_visible(False)
+    if cblab:
+        cb = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.02)
+        cb.ax.tick_params(labelsize=8)
+
+fig.suptitle(f'One lesion, four maps  (subject {sid}) -- '
+             'myelin and axon both drop inside the lesion (red)',
+             color=C['text'], fontsize=13.5)
+fig.tight_layout(rect=[0, 0, 1, 0.93])
+for ext in ('png', 'svg'):
+    fig.savefig(os.path.join(OUT, f'fig_brainmap.{ext}'), dpi=200, facecolor='white')
+print('saved', os.path.join(OUT, 'fig_brainmap.png'), '(+ .svg)')
+
+# quick numbers to quote: mean inside lesion vs a NAWM ring, this slice
+ring = ndimage.binary_dilation(les[:, :, z], iterations=5) & ~ndimage.binary_dilation(les[:, :, z], iterations=2)
+for name, vol in [('MVF', mvf[:, :, z]), ('AVF', avf[:, :, z]), ('MWF', mwf[:, :, z])]:
+    li = np.nanmean(vol[les[:, :, z]]); ne = np.nanmean(vol[ring])
+    print(f'  {name}: lesion={li:.3f}  peri-NAWM={ne:.3f}  ({100*(li-ne)/ne:+.1f}%)')
