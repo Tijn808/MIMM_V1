@@ -22,13 +22,8 @@ from scipy import ndimage, stats
 import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
-
-mpl.rcParams.update({
-    'font.size': 12, 'axes.titlesize': 14, 'axes.labelsize': 13,
-    'xtick.labelsize': 11, 'ytick.labelsize': 11, 'legend.fontsize': 11,
-    'savefig.dpi': 200, 'axes.grid': True, 'grid.alpha': 0.25, 'grid.linestyle': '--',
-})
-LESION, NAWM, NAWM_WHOLE = '#d62728', '#2ca02c', '#98df8a'
+from mimm_style import apply_style, C, COMPARTMENT   # shared deck palette (style only, numbers unchanged)
+apply_style()
 GAP, WIDTH = 2, 3          # perilesional shell: 2 voxels gap, 3 voxels wide
 MIN_LES, MIN_PERI = 50, 50
 
@@ -84,9 +79,10 @@ for ax, label in zip(axes, ['MVF (myelin)', 'AVF (axon)', 'FVF (fibre)']):
     whole, peri, les = whole[m], peri[m], les[m]
     for a, b, c in zip(whole, peri, les):
         ax.plot([0, 1, 2], [a, b, c], '-', color='0.65', lw=0.9, alpha=0.7)
-    ax.plot([0]*len(whole), whole, 'o', color=NAWM_WHOLE, ms=6)
-    ax.plot([1]*len(peri), peri, 'o', color=NAWM, ms=6)
-    ax.plot([2]*len(les), les, 'o', color=LESION, ms=6)
+    key = label.split()[0]                       # MVF / AVF / FVF -> compartment teal shade
+    ax.plot([0]*len(whole), whole, 'o', color=C['secondary'], ms=6)   # NAWM (whole) grey
+    ax.plot([1]*len(peri), peri, 'o', color=C['reference'], ms=6)     # NAWM (peri) grey
+    ax.plot([2]*len(les), les, 'o', color=COMPARTMENT[key], ms=7)     # lesion = compartment colour
     for xi, v in [(0, whole), (1, peri), (2, les)]:
         ax.errorbar(xi, v.mean(), yerr=v.std(ddof=1)/np.sqrt(len(v)),
                     fmt='_', color='k', ms=26, capsize=6, lw=2.2)

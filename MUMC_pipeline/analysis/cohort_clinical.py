@@ -35,6 +35,8 @@ from scipy import stats
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from mimm_style import apply_style, C   # shared deck palette (style only, numbers unchanged)
+apply_style()
 
 
 def _load(p):
@@ -282,7 +284,7 @@ if clin_csv and os.path.exists(clin_csv):
             data.append((lab, is_c, orho, olo, ohi, p))
         data.sort(key=lambda d: d[2])                  # weakest at bottom, strongest at top
         for yi, (lab, is_c, orho, olo, ohi, p) in enumerate(data):
-            col = '#1f77b4' if is_c else '#9e9e9e'
+            col = C['MIMM'] if is_c else C['reference']
             ax.errorbar(orho, yi, xerr=[[max(0, orho - olo)], [max(0, ohi - orho)]],
                         fmt='o', color=col, ecolor=col, capsize=3, ms=8, lw=1.8, zorder=3)
             if p < 0.05:
@@ -305,9 +307,9 @@ if clin_csv and os.path.exists(clin_csv):
         bb, aa = np.polyfit(x[i], y[i], 1); preds.append(bb * xs + aa)
     preds = np.array(preds)
     ax.fill_between(xs, np.percentile(preds, 2.5, 0), np.percentile(preds, 97.5, 0),
-                    color='#1f77b4', alpha=0.18, zorder=1)
+                    color=C['MIMM'], alpha=0.18, zorder=1)
     b, a = np.polyfit(x, y, 1); ax.plot(xs, b * xs + a, 'k--', lw=1.5, zorder=2)
-    ax.scatter(x, y, s=44, c='#1f77b4', alpha=0.9, zorder=3, edgecolor='white', lw=0.5)
+    ax.scatter(x, y, s=44, c=C['MIMM'], alpha=0.9, zorder=3, edgecolor='white', lw=0.5)
     ax.text(0.04, 0.06, f'FVF vs 9HPT\nrho = {rho:.2f}, p = {p:.3f} (n={len(x)})',
             transform=ax.transAxes, va='bottom',
             bbox=dict(boxstyle='round', fc='white', ec='0.7'))
@@ -316,8 +318,8 @@ if clin_csv and os.path.exists(clin_csv):
     forest(axd['B'], 'hpt_dom', '9-hole peg (dexterity)')
     forest(axd['C'], 'sdmt', 'SDMT (processing speed)')
     from matplotlib.patches import Patch
-    axd['C'].legend(handles=[Patch(color='#1f77b4', label='MIMM-specific (FVF, AVF, g-ratio)'),
-                             Patch(color='#9e9e9e', label='single-number myelin (MVF, chi-, MWF)')],
+    axd['C'].legend(handles=[Patch(color=C['MIMM'], label='MIMM-specific (FVF, AVF, g-ratio)'),
+                             Patch(color=C['reference'], label='single-number myelin (MVF, chi-, MWF)')],
                     loc='lower right', fontsize=8, framealpha=0.9)
     fig.suptitle('Clinical correlates: the fibre/axon compartment vs the single-number measures '
                  '(bootstrap 95% CI)', fontsize=12)

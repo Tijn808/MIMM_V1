@@ -28,6 +28,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.transforms import blended_transform_factory
+from mimm_style import apply_style, C   # shared deck palette (style only, numbers unchanged)
+apply_style()
 
 # JHU ICBM-DTI-81 labels 1..50, in the pipeline's label order.
 JHU_NAMES = [
@@ -130,7 +132,7 @@ fig, (axA, axB) = plt.subplots(1, 2, figsize=(12, 5.2))
 mvf_pct, mwf_pct = nawm_mvf * 100, nawm_mwf * 100
 
 # --- scatter ---
-axA.scatter(mwf_pct, mvf_pct, s=45, c='#1f77b4', alpha=0.85)
+axA.scatter(mwf_pct, mvf_pct, s=45, c=C['MIMM'], alpha=0.85)
 b, a = np.polyfit(mwf_pct, mvf_pct, 1); xs = np.linspace(mwf_pct.min(), mwf_pct.max(), 100)
 axA.plot(xs, b * xs + a, 'k--', lw=1.3)
 axA.text(0.04, 0.94, f'r = {r:.2f}, p = {p:.3f}\nn = {n_sub} subjects (NAWM)',
@@ -144,17 +146,17 @@ axA.set_title('MIMM MVF vs MWF, whole-NAWM per subject'); axA.grid(alpha=0.25)
 mean_pct = (mvf_pct + mwf_pct) / 2; diff_pct = mvf_pct - mwf_pct
 bias_p = diff_pct.mean(); sd_p = diff_pct.std(ddof=1)
 hi, lo = bias_p + 1.96 * sd_p, bias_p - 1.96 * sd_p
-axB.scatter(mean_pct, diff_pct, s=45, c='#1f77b4', alpha=0.85)
-axB.axhline(bias_p, color='#d62728', lw=1.8)
-axB.axhline(hi, color='#d62728', ls='--', lw=1.3)
-axB.axhline(lo, color='#d62728', ls='--', lw=1.3)
+axB.scatter(mean_pct, diff_pct, s=45, c=C['MIMM'], alpha=0.85)
+axB.axhline(bias_p, color=C['text'], lw=1.8)
+axB.axhline(hi, color=C['text'], ls='--', lw=1.3)
+axB.axhline(lo, color=C['text'], ls='--', lw=1.3)
 tform = blended_transform_factory(axB.transAxes, axB.transData)
 axB.text(0.99, bias_p, f'MEAN: {bias_p:.2f}', transform=tform, va='bottom', ha='right',
-         color='#d62728', fontsize=9)
+         color=C['text'], fontsize=9)
 axB.text(0.99, hi, f'+1.96SD: {hi:.2f}', transform=tform, va='bottom', ha='right',
-         color='#d62728', fontsize=9)
+         color=C['text'], fontsize=9)
 axB.text(0.99, lo, f'-1.96SD: {lo:.2f}', transform=tform, va='top', ha='right',
-         color='#d62728', fontsize=9)
+         color=C['text'], fontsize=9)
 axB.set_xlabel('Mean of MVF & MWF (%)'); axB.set_ylabel('MVF - MWF (%)')
 axB.set_title('Bland-Altman (NAWM, per subject)'); axB.grid(alpha=0.25)
 

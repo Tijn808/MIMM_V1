@@ -22,6 +22,8 @@ from scipy import stats
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from mimm_style import apply_style, C_CHI   # shared deck palette (style only, no numbers change)
+apply_style()
 
 if len(sys.argv) < 2:
     sys.exit('usage: fig_crossmethod_channels.py <results_dir>')
@@ -74,7 +76,7 @@ chineg = np.abs(col('chi_neg_chisep_mean'))
 mvf = col('MVF_atlas_mean')
 if mvf is None:
     sys.exit('MVF_atlas_mean column missing from roi_stats.csv')
-r, p = scatter_r(axM, chineg, mvf, '#1f77b4', None)
+r, p = scatter_r(axM, chineg, mvf, C_CHI['chi_myelin'], None)
 axM.text(0.04, 0.96, f'r = {r:.2f}\n' + ('(p < 0.001)' if p < 1e-3 else f'(p = {p:.3f})'),
          transform=axM.transAxes, va='top',
          fontsize=10, bbox=dict(boxstyle='round', fc='white', ec='0.7'))
@@ -87,7 +89,7 @@ axM.grid(alpha=0.25)
 chipos, chiiron = col('chi_pos_chisep_mean'), col('chi_iron_atlas_mean')
 if chipos is None or chiiron is None:
     sys.exit('chi_pos_chisep_mean or chi_iron_atlas_mean column missing')
-r, p = scatter_r(axI, chipos, chiiron, '#d62728', None)
+r, p = scatter_r(axI, chipos, chiiron, C_CHI['chi_iron'], None)
 axI.text(0.04, 0.96, f'r = {r:.2f}\n' + ('(p < 0.001)' if p < 1e-3 else f'(p = {p:.3f})'),
          transform=axI.transAxes, va='top',
          fontsize=10, bbox=dict(boxstyle='round', fc='white', ec='0.7'))
