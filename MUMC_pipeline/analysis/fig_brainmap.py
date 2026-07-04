@@ -138,7 +138,7 @@ def sl(v):
     return np.rot90(v[r0:r1, c0:c1, z])   # radiological-ish display
 
 
-les_s = sl(foc.astype(float))   # outline only the single focused lesion
+les_s = np.rot90(foc[r0:r1, c0:c1].astype(float))   # outline only the single focused lesion (2D)
 
 # shared scale for the two myelin maps so MVF vs MWF is a fair visual comparison
 mvf_s, mwf_s, avf_s, fl_s = sl(mvf), sl(mwf), sl(avf), sl(flair)
