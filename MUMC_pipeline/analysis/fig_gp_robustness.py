@@ -55,7 +55,8 @@ if len(gp):
 
 ax.set_xticks(x); ax.set_xticklabels(df['structure'], rotation=20, ha='right')
 ax.set_ylabel('Myelin fraction')
-ax.set_title('MWF over-reads myelin in iron-rich grey matter; MIMM does not')
+# no baked-in title: the slide headline carries the (qualified) interpretive claim,
+# and the axes alone cannot show MIMM is "correct" — only that the two diverge.
 ax.legend(loc='upper left')
 ymax = float(np.nanmax([df['MVF_mean'].max(), df['MWF_mean'].max()]))
 ax.set_ylim(0, ymax * 1.28)
