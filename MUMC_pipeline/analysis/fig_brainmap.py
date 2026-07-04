@@ -119,7 +119,7 @@ def _maps(dd):
 def _pct(vol, foc2d, zc):
     if vol is None:
         return float('nan')
-    ring = ndimage.binary_dilation(foc2d, 5) & ~ndimage.binary_dilation(foc2d, 2)
+    ring = ndimage.binary_dilation(foc2d, iterations=5) & ~ndimage.binary_dilation(foc2d, iterations=2)
     li, ne = np.nanmean(vol[:, :, zc][foc2d]), np.nanmean(vol[:, :, zc][ring])
     return 100 * (li - ne) / ne if ne else float('nan')
 
