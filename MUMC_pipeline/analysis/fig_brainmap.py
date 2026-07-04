@@ -70,9 +70,14 @@ def score_candidates(les3d, fa3d):
             continue
         ring = ndimage.binary_dilation(m2, iterations=6) & ~ndimage.binary_dilation(m2, iterations=2)
         fa2 = fa3d[:, :, z] if fa3d is not None else None
-        wm = float(np.mean(fa2[ring] > 0.20)) if (fa2 is not None and ring.sum()) else 0.0
-        # reward discrete WM-surrounded lesions; wm_ring_frac dominates
-        out.append((area * (wm ** 2), z, area, wm, m2.copy()))
+        if fa2 is not None and ring.sum():
+            wm = float(np.mean(fa2[ring] > 0.20))       # fraction of ring that is white matter
+            csf = float(np.mean(fa2[ring] < 0.10))      # fraction that is CSF-like (ventricle)
+        else:
+            wm, csf = 0.0, 1.0
+        # reward discrete WM-surrounded lesions; heavily penalise ventricle/CSF adjacency
+        score = area * (wm ** 2) * ((1 - csf) ** 2)
+        out.append((score, z, area, wm, m2.copy(), csf))
     return out
 
 
@@ -88,25 +93,25 @@ for ld in sorted(glob.glob(os.path.join(RES, '*', 'lesion', 'lesion_mask.nii.gz'
     if les.sum() < 30:
         continue
     fa = load(p['fa'])
-    for score, z, area, wm, comp2d in score_candidates(les, fa):
-        cands.append((score, sid, d, z, area, wm, comp2d))
+    for score, z, area, wm, comp2d, csf in score_candidates(les, fa):
+        cands.append((score, sid, d, z, area, wm, comp2d, csf))
 
 if not cands:
     sys.exit('no discrete WM lesion found (try relaxing AREA_LO/AREA_HI)')
 cands.sort(key=lambda c: c[0], reverse=True)
-print('[shortlist] top discrete WM lesions (subject, z, area_vox, wm_ring_frac):')
-for c in cands[:8]:
-    print(f'    {c[1]}  z={c[3]}  area={c[4]:.0f}  wm_ring={c[5]:.2f}')
+print('[shortlist] top discrete WM lesions (subject, z, area, wm_ring, csf_ring):')
+for c in cands[:10]:
+    print(f'    {c[1]}  z={c[3]}  area={c[4]:.0f}  wm_ring={c[5]:.2f}  csf_ring={c[7]:.2f}')
 
 # choose: if a z is forced, prefer the scored component on that exact slice
 chosen = cands[0]
 if FORCE_Z is not None:
     match = [c for c in cands if c[3] == FORCE_Z]
     chosen = match[0] if match else cands[0]
-_, sid, d, z, _, _, foc = chosen
+sid, d, z, foc, csf = chosen[1], chosen[2], chosen[3], chosen[6], chosen[7]
 if FORCE_Z is not None:
     z = FORCE_Z
-print(f'[pick] subject={sid}  z={z}  (one lesion isolated)')
+print(f'[pick] subject={sid}  z={z}  (one lesion isolated, csf_ring={csf:.2f})')
 
 p = subj_paths(d)
 mvf = load(p['mvf']); fvf = load(p['fvf']); mwf = load(p['mwf'])
