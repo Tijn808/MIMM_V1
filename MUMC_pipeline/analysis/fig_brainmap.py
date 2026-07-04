@@ -112,6 +112,13 @@ if brain is not None:
     for v in (mvf, avf, mwf):
         v[~m] = np.nan
 
+# guard: if the chosen slice has no lesion (e.g. a forced z that isn't a lesion
+# slice), fall back to this subject's slice with the most lesion voxels.
+if les[:, :, z].sum() == 0:
+    z_fallback = int(np.argmax(les.sum(axis=(0, 1))))
+    print(f'[warn] z={z} has no lesion for {sid}; using best lesion slice z={z_fallback}')
+    z = z_fallback
+
 # --- bounding box around the lesion on this slice, with margin, for a zoom ---
 ys, xs = np.where(les[:, :, z])
 pad = 22
