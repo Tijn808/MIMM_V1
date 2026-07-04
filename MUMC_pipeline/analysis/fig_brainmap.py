@@ -99,9 +99,35 @@ for ld in sorted(glob.glob(os.path.join(RES, '*', 'lesion', 'lesion_mask.nii.gz'
 if not cands:
     sys.exit('no discrete WM lesion found (try relaxing AREA_LO/AREA_HI)')
 cands.sort(key=lambda c: c[0], reverse=True)
-print('[shortlist] top discrete WM lesions (subject, z, area, wm_ring, csf_ring):')
-for c in cands[:10]:
-    print(f'    {c[1]}  z={c[3]}  area={c[4]:.0f}  wm_ring={c[5]:.2f}  csf_ring={c[7]:.2f}')
+
+# preview the compartment change for each candidate so we can pick a lesion that
+# is BOTH clean WM (low csf) AND on-message (MVF and AVF both drop).
+_cache = {}
+def _maps(dd):
+    if dd not in _cache:
+        pp = subj_paths(dd)
+        mv, fv, mw, br = load(pp['mvf']), load(pp['fvf']), load(pp['mwf']), load(pp['brain'])
+        av = (fv - mv) if (mv is not None and fv is not None) else None
+        if br is not None:
+            bm = br > 0
+            for v in (mv, av, mw):
+                if v is not None:
+                    v[~bm] = np.nan
+        _cache[dd] = (mv, av, mw)
+    return _cache[dd]
+
+def _pct(vol, foc2d, zc):
+    if vol is None:
+        return float('nan')
+    ring = ndimage.binary_dilation(foc2d, 5) & ~ndimage.binary_dilation(foc2d, 2)
+    li, ne = np.nanmean(vol[:, :, zc][foc2d]), np.nanmean(vol[:, :, zc][ring])
+    return 100 * (li - ne) / ne if ne else float('nan')
+
+print('[shortlist] subject  z  area  wm_ring  csf_ring   MVF%  AVF%  MWF%   (want csf low, MVF&AVF both negative)')
+for c in cands[:12]:
+    mv, av, mw = _maps(c[2])
+    print(f'    {c[1]}  z={c[3]:>3}  area={c[4]:>3.0f}  wm={c[5]:.2f}  csf={c[7]:.2f}   '
+          f'MVF={_pct(mv, c[6], c[3]):+5.0f}  AVF={_pct(av, c[6], c[3]):+5.0f}  MWF={_pct(mw, c[6], c[3]):+5.0f}')
 
 # choose: if a z is forced, prefer the scored component on that exact slice
 chosen = cands[0]
