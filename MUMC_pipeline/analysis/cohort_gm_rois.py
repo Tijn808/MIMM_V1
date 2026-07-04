@@ -98,8 +98,8 @@ if n_done == 0:
 out = os.path.join(out_dir, 'cohort_gm_rois.csv')
 with open(out, 'w', newline='') as f:
     w = csv.writer(f)
-    w.writerow(['structure', 'n_subj', 'MVF_mean', 'MWF_mean', 'chi_pos_mean',
-                'bias_MVF_minus_MWF', 'bias_SD', 'paired_p', 'cohens_d'])
+    w.writerow(['structure', 'n_subj', 'MVF_mean', 'MVF_sem', 'MWF_mean', 'MWF_sem',
+                'chi_pos_mean', 'bias_MVF_minus_MWF', 'bias_SD', 'paired_p', 'cohens_d'])
     for name in GM:
         arr = np.array(agg[name], dtype=float)
         if arr.size == 0 or not np.isfinite(arr[:, 0]).any():
@@ -113,8 +113,12 @@ with open(out, 'w', newline='') as f:
             dval = bias / sd
         else:
             bias = sd = p = dval = np.nan
+        mvf_f = mvf[np.isfinite(mvf)]; mwf_f = mwf[np.isfinite(mwf)]
+        mvf_sem = mvf_f.std(ddof=1) / np.sqrt(mvf_f.size) if mvf_f.size > 1 else np.nan
+        mwf_sem = mwf_f.std(ddof=1) / np.sqrt(mwf_f.size) if mwf_f.size > 1 else np.nan
         w.writerow([name, int(np.isfinite(mvf).sum()),
-                    f'{np.nanmean(mvf):.4f}', f'{np.nanmean(mwf):.4f}',
+                    f'{np.nanmean(mvf):.4f}', f'{mvf_sem:.4f}',
+                    f'{np.nanmean(mwf):.4f}', f'{mwf_sem:.4f}',
                     f'{np.nanmean(chi):.4f}', f'{bias:+.4f}', f'{sd:.4f}',
                     f'{p:.4g}', f'{dval:+.2f}'])
 print(f'\nsaved: {out}  ({n_done} subjects)')
