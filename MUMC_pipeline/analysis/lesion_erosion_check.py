@@ -30,7 +30,8 @@ from scipy import ndimage, stats
 
 GAP, WIDTH = 2, 3            # perilesional shell: 2-voxel gap, 3 voxels wide
 MIN_LES, MIN_PERI = 50, 50
-EROSIONS = [0, 1, 2]        # voxels eroded from the lesion mask
+EROSIONS = [0, 1]           # 1-voxel erosion removes just the outer (CSF-prone) rim
+                            # while keeping the cohort near the full n (~17)
 
 if len(sys.argv) < 2:
     sys.exit('usage: lesion_erosion_check.py <results_dir>')
