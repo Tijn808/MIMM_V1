@@ -44,15 +44,36 @@ def subj_paths(d):
                 mwf=os.path.join(d, 'grase', 'MWF.nii.gz'),
                 les=os.path.join(d, 'lesion', 'lesion_mask.nii.gz'),
                 flair=os.path.join(d, 'lesion', 'FLAIR_mgre.nii.gz'),
+                fa=os.path.join(d, 'atlas', 'FA_atlas.nii.gz'),
                 brain=os.path.join(d, 'qsm', 'brain_mask.nii.gz'))
 
 
-# --- choose the subject + axial slice with the largest, most compact lesion ---
-def best_slice(les):
-    """axial index with the most lesion voxels."""
-    areas = les.reshape(-1, les.shape[2]).sum(axis=0) if les.ndim == 3 else None
-    z = int(np.argmax(les.sum(axis=(0, 1))))
-    return z, float(les[:, :, z].sum())
+# We want a DISCRETE white-matter lesion surrounded by normal WM, not a big
+# confluent periventricular blob hugging the ventricles (where the dark CSF
+# reads as "myelin loss"). Score each connected lesion by area in a teaching-
+# friendly range AND by how much of its surrounding ring is real white matter.
+AREA_LO, AREA_HI = 25, 450        # voxels on the shown slice: discrete, not confluent
+
+
+def score_candidates(les3d, fa3d):
+    """yield (score, z, area, wm_ring_frac) for each connected lesion, best slice."""
+    lab, n = ndimage.label(les3d)
+    out = []
+    for k in range(1, n + 1):
+        comp = lab == k
+        if comp.sum() < 20:
+            continue
+        z = int(np.argmax(comp.sum(axis=(0, 1))))
+        m2 = comp[:, :, z]
+        area = float(m2.sum())
+        if not (AREA_LO <= area <= AREA_HI):
+            continue
+        ring = ndimage.binary_dilation(m2, iterations=6) & ~ndimage.binary_dilation(m2, iterations=2)
+        fa2 = fa3d[:, :, z] if fa3d is not None else None
+        wm = float(np.mean(fa2[ring] > 0.20)) if (fa2 is not None and ring.sum()) else 0.0
+        # reward discrete WM-surrounded lesions; wm_ring_frac dominates
+        out.append((area * (wm ** 2), z, area, wm))
+    return out
 
 
 cands = []
@@ -66,16 +87,20 @@ for ld in sorted(glob.glob(os.path.join(RES, '*', 'lesion', 'lesion_mask.nii.gz'
     les = (load(p['les']) > 0.5)
     if les.sum() < 30:
         continue
-    z, area = best_slice(les)
-    cands.append((area, sid, d, z))
+    fa = load(p['fa'])
+    for score, z, area, wm in score_candidates(les, fa):
+        cands.append((score, sid, d, z, area, wm))
 
 if not cands:
-    sys.exit('no subject has MVF+FVF+MWF+FLAIR+lesion all present')
+    sys.exit('no discrete WM lesion found (try relaxing AREA_LO/AREA_HI)')
 cands.sort(reverse=True)
-_, sid, d, z = cands[0]
+print('[shortlist] top discrete WM lesions (subject, z, area_vox, wm_ring_frac):')
+for sc, s, _dd, zz, ar, wm in cands[:8]:
+    print(f'    {s}  z={zz}  area={ar:.0f}  wm_ring={wm:.2f}')
+_, sid, d, z, _, _ = cands[0]
 if FORCE_Z is not None:
     z = FORCE_Z
-print(f'[pick] subject={sid}  z={z}  (of {len(cands)} candidates)')
+print(f'[pick] subject={sid}  z={z}')
 
 p = subj_paths(d)
 mvf = load(p['mvf']); fvf = load(p['fvf']); mwf = load(p['mwf'])
