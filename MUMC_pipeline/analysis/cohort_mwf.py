@@ -135,7 +135,8 @@ mvf_pct, mwf_pct = nawm_mvf * 100, nawm_mwf * 100
 axA.scatter(mwf_pct, mvf_pct, s=45, c=C['MIMM'], alpha=0.85)
 b, a = np.polyfit(mwf_pct, mvf_pct, 1); xs = np.linspace(mwf_pct.min(), mwf_pct.max(), 100)
 axA.plot(xs, b * xs + a, 'k--', lw=1.3)
-axA.text(0.04, 0.94, f'r = {r:.2f}, p = {p:.3f}\nn = {n_sub} subjects (NAWM)',
+plabel = 'p < 0.001' if p < 1e-3 else f'p = {p:.3f}'
+axA.text(0.04, 0.94, f'r = {r:.2f}, {plabel}\nn = {n_sub} subjects (NAWM)',
          transform=axA.transAxes, va='top', fontsize=10,
          bbox=dict(boxstyle='round', fc='white', ec='0.7'))
 axA.set_xlabel('MWF  T2-GRASE  (NAWM mean, %)')
