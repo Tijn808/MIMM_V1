@@ -2,10 +2,12 @@
 """
 fig_slicemap.py -- a clean whole-slice map of the pipeline's own output for the deck.
 
-One axial slice: FLAIR | MIMM MVF (myelin) | MWF (T2-GRASE). MVF and MWF share a
-colour scale so the eye sees they broadly agree across white matter (the visual
-companion to the r=0.70 agreement). No lesion outline -- this simply shows what
-the pipeline produces on a recognisable brain, the brain image the deck lacks.
+One axial slice: FLAIR | MIMM MVF (myelin) | MWF (T2-GRASE). MVF and MWF are
+DIFFERENT quantities (volume vs water fraction), so each is scaled to its own
+range: the eye compares the spatial PATTERN across white matter (the visual
+companion to the r=0.70 agreement) without implying the absolute values match.
+No lesion outline -- this simply shows what the pipeline produces on a
+recognisable brain, the brain image the deck lacked.
 
 Usage:
   python3 fig_slicemap.py <results_dir>                 # auto subject + WM-rich slice
@@ -81,13 +83,16 @@ def sl(v):
 
 
 mvf_s, mwf_s, fl_s = sl(mvf), sl(mwf), sl(flair)
-vmax = np.nanpercentile(np.concatenate([mvf_s[np.isfinite(mvf_s)],
-                                        mwf_s[np.isfinite(mwf_s)]]), 98)
+# MVF and MWF are DIFFERENT quantities (volume vs water fraction), so each map is
+# scaled to its OWN range (2nd-98th pct). This compares the spatial PATTERN without
+# implying the absolute values are equivalent, and lets each use its full range.
+vmax_mvf = np.nanpercentile(mvf_s[np.isfinite(mvf_s)], 98)
+vmax_mwf = np.nanpercentile(mwf_s[np.isfinite(mwf_s)], 98)
 
 panels = [
     ('FLAIR',              fl_s,  'gray',  (np.nanpercentile(fl_s, 2), np.nanpercentile(fl_s, 98)), None),
-    ('MIMM  MVF (myelin)', mvf_s, 'magma', (0, vmax), 'fraction'),
-    ('MWF  (T2-GRASE)',    mwf_s, 'magma', (0, vmax), 'fraction'),
+    ('MIMM  MVF (myelin)', mvf_s, 'magma', (0, vmax_mvf), 'fraction'),
+    ('MWF  (T2-GRASE)',    mwf_s, 'magma', (0, vmax_mwf), 'fraction'),
 ]
 
 fig, axes = plt.subplots(1, 3, figsize=(12, 4.8))
