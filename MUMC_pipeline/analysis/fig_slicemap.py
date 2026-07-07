@@ -131,7 +131,19 @@ if FORCE_Z is None:
 else:
     sid, d, p = cands[0]
     z = FORCE_Z
-    print(f'[pick] subject={sid}  z={z}  (forced)')
+    # isolate whichever lesion COMPONENT overlaps this exact forced slice (so a
+    # forced subject/z matches the same single lesion fig_brainmap.py rendered,
+    # not the whole raw mask merged together)
+    if os.path.exists(p['les']):
+        brain = load(p['brain']); bm_ = brain > 0
+        les = load(p['les']); les = (les > 0.5) & bm_
+        lab, n = ndimage.label(les)
+        for k in range(1, n + 1):
+            comp2d = (lab == k)[:, :, z]
+            if comp2d.sum() >= 5:
+                foc = comp2d
+                break
+    print(f'[pick] subject={sid}  z={z}  (forced{"" if foc is not None else "; no lesion component on this slice"})')
 
 mvf = load(p['mvf']); mwf = load(p['mwf']); flair = load(p['flair'])
 fa = load(p['fa']); brain = load(p['brain'])
