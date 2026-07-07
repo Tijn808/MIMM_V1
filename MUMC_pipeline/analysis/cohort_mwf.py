@@ -167,6 +167,19 @@ out = os.path.join(out_dir, 'cohort_mvf_vs_mwf.png')
 fig.savefig(out, dpi=150)
 print(f'saved: {out}')
 
+# --- whole-NAWM reference row, for fig_gp_robustness.py to prepend as a baseline
+# group (both methods agree in normal-appearing WM; GP is where they diverge) ---
+nawm_ref = os.path.join(out_dir, 'cohort_nawm_reference.csv')
+with open(nawm_ref, 'w', newline='') as f:
+    w = csv.writer(f)
+    w.writerow(['structure', 'n_subj', 'MVF_mean', 'MVF_sem', 'MWF_mean', 'MWF_sem', 'cohens_d'])
+    mvf_sem = nawm_mvf.std(ddof=1) / np.sqrt(n_sub)
+    mwf_sem = nawm_mwf.std(ddof=1) / np.sqrt(n_sub)
+    dcohen = diff.mean() / sd if sd > 0 else float('nan')
+    w.writerow(['NAWM', n_sub, f'{nawm_mvf.mean():.4f}', f'{mvf_sem:.4f}',
+                f'{nawm_mwf.mean():.4f}', f'{mwf_sem:.4f}', f'{dcohen:+.2f}'])
+print(f'saved: {nawm_ref}')
+
 def paired_stats(a, bb):
     """paired bias (a-b), SD, t-test p, Cohen's d for paired per-subject means."""
     dd = a - bb; bias = dd.mean(); sd = dd.std(ddof=1)
