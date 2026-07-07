@@ -326,6 +326,28 @@ if clin_csv and os.path.exists(clin_csv):
     fig.tight_layout(rect=[0, 0, 1, 0.96])
     fig.savefig(os.path.join(ca, 'cohort_clinical.png'), dpi=150)
     print('\nsaved: cohort_clinical.png  (regplot + bootstrap-CI forest plots)')
+
+    # --- 9HPT-only variant for the deck (panels A + B only, no SDMT panel) ---
+    fig2, axd2 = plt.subplot_mosaic([['A', 'B']], figsize=(11, 5))
+    ax2 = axd2['A']
+    ax2.fill_between(xs, np.percentile(preds, 2.5, 0), np.percentile(preds, 97.5, 0),
+                     color=C['MIMM'], alpha=0.18, zorder=1)
+    ax2.plot(xs, b * xs + a, 'k--', lw=1.5, zorder=2)
+    ax2.scatter(x, y, s=44, c=C['MIMM'], alpha=0.9, zorder=3, edgecolor='white', lw=0.5)
+    ax2.text(0.04, 0.06, f'FVF vs 9HPT\nrho = {rho:.2f}, p = {p:.3f} (n={len(x)})',
+             transform=ax2.transAxes, va='bottom',
+             bbox=dict(boxstyle='round', fc='white', ec='0.7'))
+    ax2.set_xlabel('9-hole peg test, dominant hand (s)')
+    ax2.set_ylabel('WM-mean FVF (MIMM fibre)'); ax2.grid(alpha=0.25)
+    forest(axd2['B'], 'hpt_dom', '9-hole peg (dexterity)')
+    axd2['B'].legend(handles=[Patch(color=C['MIMM'], label='MIMM-specific (FVF, AVF, g-ratio)'),
+                              Patch(color=C['reference'], label='single-number myelin (MVF, chi-, MWF)')],
+                     loc='lower right', fontsize=8, framealpha=0.9)
+    fig2.suptitle('Clinical correlate: the fibre/axon compartment vs the single-number measures, '
+                  '9-hole peg test (bootstrap 95% CI)', fontsize=12)
+    fig2.tight_layout(rect=[0, 0, 1, 0.94])
+    fig2.savefig(os.path.join(ca, 'cohort_clinical_9hpt.png'), dpi=150)
+    print('saved: cohort_clinical_9hpt.png  (9HPT-only: regplot + forest plot, no SDMT panel)')
 else:
     print('\nNo clinical CSV given — clinical correlations skipped.')
     print('Build one:  python3 make_clinical_csv.py <IMPROMYMS_export.csv> clinical.csv')
