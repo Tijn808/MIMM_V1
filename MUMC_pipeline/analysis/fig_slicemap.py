@@ -7,12 +7,15 @@ DIFFERENT quantities (volume vs water fraction), so each is scaled to its own
 range: the eye compares the spatial PATTERN across white matter (the visual
 companion to the r=0.70 agreement) without implying the absolute values match.
 
-The picker PREFERS a subject/slice that actually contains a visible lesion (most
-lesion voxels on a still WM-rich slice) and outlines it in red on all three
-panels -- this is the intro slide ("here's what the pipeline produces"), and the
-visible lesion is the hook into the compartment-decomposition story (slide 11).
-Falls back to the plain WM-richest slice (no outline) if no subject has a usable
-lesion mask.
+The picker PREFERS a subject/slice that contains ONE discrete, WM-surrounded
+lesion (same connected-component + low-CSF-adjacency scoring as fig_brainmap.py,
+NOT just "most lesion voxels on the slice" -- that would grab a whole confluent
+periventricular disease burden and outline it as if it were one lesion, which
+reads as tracing the ventricles). Only that single component is outlined in red,
+on all three panels -- this is the intro slide ("here's what the pipeline
+produces"), and the visible lesion is the hook into the compartment-decomposition
+story (slide 11). Falls back to the plain WM-richest slice (no outline) if no
+subject has a usable, discrete, non-confluent lesion.
 
 Usage:
   python3 fig_slicemap.py <results_dir>                 # auto subject + slice with a lesion
@@ -22,11 +25,44 @@ Output: <results_dir>/cohort_analysis/fig_slicemap.png (+ .svg)
 import sys, os, glob
 import numpy as np
 import nibabel as nib
+from scipy import ndimage
 import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
 from mimm_style import apply_style, C
 apply_style()
+
+# discrete-lesion scoring (same idea as fig_brainmap.py): reward a moderate-size,
+# WM-surrounded lesion and heavily penalise ventricle/CSF adjacency, so we never
+# outline a confluent periventricular disease burden as if it were "a lesion".
+AREA_LO, AREA_HI = 25, 450
+
+
+def best_discrete_lesion(les3d, fa3d, bm3d):
+    """Return (score, z, area, comp2d) for the best single connected lesion
+    component across the whole volume, or None if none qualifies."""
+    lab, n = ndimage.label(les3d)
+    best = None
+    for k in range(1, n + 1):
+        comp = lab == k
+        if comp.sum() < 15:
+            continue
+        z = int(np.argmax(comp.sum(axis=(0, 1))))
+        m2 = comp[:, :, z]
+        area = float(m2.sum())
+        if not (AREA_LO <= area <= AREA_HI):
+            continue
+        ring = ndimage.binary_dilation(m2, iterations=6) & ~ndimage.binary_dilation(m2, iterations=2)
+        fa2 = fa3d[:, :, z] if fa3d is not None else None
+        if fa2 is not None and ring.sum():
+            wm = float(np.mean(fa2[ring] > 0.20))
+            csf = float(np.mean(fa2[ring] < 0.10))
+        else:
+            wm, csf = 0.0, 1.0
+        score = area * (wm ** 2) * ((1 - csf) ** 2)
+        if best is None or score > best[0]:
+            best = (score, z, area, m2.copy())
+    return best
 
 if len(sys.argv) < 2:
     sys.exit('usage: fig_slicemap.py <results_dir> [subject] [z]')
@@ -63,42 +99,35 @@ for md in sorted(glob.glob(os.path.join(RES, '*', 'mimm', 'MVF_Atlas.nii.gz'))):
 if not cands:
     sys.exit('no subject with MVF+MWF+FLAIR+brain present')
 
-les_available = {}
+foc = None  # the single lesion component to outline (2D mask on slice z), if any
 if FORCE_Z is None:
-    # among candidates, prefer whichever subject has the biggest visible lesion
-    # on a slice that is ALSO reasonably WM-rich (so it still reads as a normal
-    # brain slice, not a lesion close-up).
-    best = None  # (lesion_area, sid, d, p, z)
+    # among candidates, prefer whichever subject has the best DISCRETE lesion
+    # (moderate area, WM-surrounded, low CSF adjacency) -- never the whole raw
+    # mask, which can be several lesions merged/confluent around the ventricles.
+    best = None  # (score, sid, d, p, z, comp2d)
     for sid, d, p in cands:
         if not os.path.exists(p['les']):
             continue
-        les = load(p['les']); brain = load(p['brain'])
-        fa = load(p['fa'])
-        les = (les > 0.5) & (brain > 0)
-        if les.sum() < 20:
+        les = load(p['les']); brain = load(p['brain']); fa = load(p['fa'])
+        bm_ = brain > 0
+        les = (les > 0.5) & bm_
+        if les.sum() < 15:
             continue
-        wm = (fa > 0.20) if fa is not None else np.ones_like(les, bool)
-        # score each slice: lesion voxels, but only among slices with decent WM
-        wm_per_slice = wm.sum(axis=(0, 1))
-        wm_ok = wm_per_slice > np.percentile(wm_per_slice[wm_per_slice > 0], 40)
-        les_per_slice = les.sum(axis=(0, 1)).astype(float)
-        les_per_slice[~wm_ok] = 0
-        z = int(np.argmax(les_per_slice))
-        area = les_per_slice[z]
-        if area < 10:
+        r = best_discrete_lesion(les, fa, bm_)
+        if r is None:
             continue
-        les_available[sid] = True
-        if best is None or area > best[0]:
-            best = (area, sid, d, p, z)
+        score, z_, area, comp2d = r
+        if best is None or score > best[0]:
+            best = (score, sid, d, p, z_, comp2d, area)
     if best is not None:
-        _, sid, d, p, z = best
-        print(f'[pick] subject={sid}  z={z}  (slice with a visible lesion, area={best[0]:.0f} vox)')
+        _, sid, d, p, z, foc, area = best
+        print(f'[pick] subject={sid}  z={z}  (discrete lesion, area={area:.0f} vox)')
     else:
         sid, d, p = cands[0]
         fa = load(p['fa']); brain = load(p['brain']); bm = brain > 0
         wm = (fa > 0.20) & bm if fa is not None else bm
         z = int(np.argmax(wm.sum(axis=(0, 1))))
-        print(f'[pick] subject={sid}  z={z}  (no subject had a usable lesion mask; WM-richest slice, no outline)')
+        print(f'[pick] subject={sid}  z={z}  (no subject had a usable discrete lesion; WM-richest slice, no outline)')
 else:
     sid, d, p = cands[0]
     z = FORCE_Z
@@ -111,13 +140,7 @@ mwf = np.clip(mwf, 0, 0.5)
 for v in (mvf, mwf):
     v[~bm] = np.nan
 
-# lesion outline for this exact slice, if this subject has one there
-les_s = None
-if os.path.exists(p['les']):
-    les3d = load(p['les'])
-    les3d = (les3d > 0.5) & bm
-    if les3d[:, :, z].sum() >= 5:
-        les_s = les3d
+les_s = foc  # already the single 2D component mask on slice z, or None
 
 # crop tightly to the brain on this slice
 ys, xs = np.where(bm[:, :, z])
@@ -131,7 +154,8 @@ def sl(v):
 
 
 mvf_s, mwf_s, fl_s = sl(mvf), sl(mwf), sl(flair)
-les_out = np.rot90(les_s[r0:r1, c0:c1, z].astype(float)) if les_s is not None else None
+# les_s is already a single-component 2D mask (full slice size) on slice z
+les_out = np.rot90(les_s[r0:r1, c0:c1].astype(float)) if les_s is not None else None
 
 # MVF and MWF are DIFFERENT quantities (volume vs water fraction), so each map is
 # scaled to its OWN range (2nd-98th pct). This compares the spatial PATTERN without
