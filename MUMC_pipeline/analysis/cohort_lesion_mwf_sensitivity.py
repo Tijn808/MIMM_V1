@@ -100,6 +100,25 @@ fig.savefig(os.path.join(out_dir, 'cohort_lesion_mwf_sensitivity.png'), dpi=150)
 with open(os.path.join(out_dir, 'cohort_lesion_mwf_sensitivity.csv'), 'w', newline='') as f:
     w = csv.DictWriter(f, fieldnames=list(summary[0].keys())); w.writeheader(); w.writerows(summary)
 
+# --- "Lesions" reference row for fig_gp_robustness.py (same format as the
+# NAWM/GM-structure rows: mean MVF, mean MWF and the paired MVF-vs-MWF Cohen's d
+# WITHIN lesion tissue, so lesion tissue can sit alongside NAWM and the GM
+# structures on the same bar chart, per supervisor request). ---
+les_mvf = np.array([r['MIMM MVF'][1] for r in rows])
+les_mwf = np.array([r['MWF'][1] for r in rows])
+m = np.isfinite(les_mvf) & np.isfinite(les_mwf)
+les_mvf, les_mwf = les_mvf[m], les_mwf[m]
+diff_lm = les_mvf - les_mwf
+lesion_ref = os.path.join(out_dir, 'cohort_lesion_reference.csv')
+with open(lesion_ref, 'w', newline='') as f:
+    w = csv.writer(f)
+    w.writerow(['structure', 'n_subj', 'MVF_mean', 'MVF_sem', 'MWF_mean', 'MWF_sem', 'cohens_d'])
+    w.writerow(['Lesions', int(m.sum()),
+                f'{les_mvf.mean():.4f}', f'{les_mvf.std(ddof=1) / np.sqrt(m.sum()):.4f}',
+                f'{les_mwf.mean():.4f}', f'{les_mwf.std(ddof=1) / np.sqrt(m.sum()):.4f}',
+                f'{diff_lm.mean() / diff_lm.std(ddof=1):+.2f}'])
+print(f'saved: {lesion_ref}')
+
 print('\n=== Sensitivity summary (|Cohen d| larger = more sensitive) ===')
 for s in summary:
     print(f'  {s["metric"]:10s} {s["pct_change"]:+6.1f}%  p={s["paired_p"]:.3g}  d={s["cohens_d"]:+.2f}')
